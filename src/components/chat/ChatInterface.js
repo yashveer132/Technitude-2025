@@ -1,0 +1,1266 @@
+import { useState, useRef, useEffect } from "react";
+import {
+  Box,
+  Flex,
+  Input,
+  Button,
+  VStack,
+  Text,
+  Avatar,
+  useColorModeValue,
+  InputGroup,
+  InputRightElement,
+  IconButton,
+  Tooltip,
+  Badge,
+  useToast,
+  Spinner,
+  HStack,
+  Alert,
+  AlertIcon,
+  Link,
+  Divider,
+  useDisclosure,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalCloseButton,
+  ModalFooter,
+  List,
+  ListItem,
+  Icon,
+} from "@chakra-ui/react";
+import { motion } from "framer-motion";
+import {
+  FaPaperPlane,
+  FaMicrophone,
+  FaRegCopy,
+  FaTrash,
+  FaRobot,
+  FaUser,
+  FaSync,
+  FaDownload,
+  FaHistory,
+} from "react-icons/fa";
+import {
+  generateAIResponse,
+  enhanceResponseWithDomainData,
+} from "../../services/aiService";
+import { processOrder } from "../../services/orderService";
+import {
+  createBooking,
+  getBookingDetails,
+} from "../../services/bookingService";
+import { useAuth } from "../../context/AuthContext";
+import AIStatusIndicator from "./AIStatusIndicator";
+import { parseMarkdown } from "../../utils/markdownParser";
+import {
+  generateResponse,
+  getApiStatus,
+  reconnectApi,
+} from "../../services/chatService";
+
+const MotionBox = motion(Box);
+const MotionFlex = motion(Flex);
+
+function ChatInterface({ context, domainData }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [apiStatus, setApiStatus] = useState("checking");
+  const [chatHistory, setChatHistory] = useState([]);
+  const [sessionId] = useState(Math.random().toString(36).substring(7));
+  const { user } = useAuth();
+  const messagesEndRef = useRef(null);
+  const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+
+  const [conversationContext, setConversationContext] = useState({
+    pendingAction: null,
+    lastTopic: null,
+    pendingConfirmation: false,
+  });
+
+  const bgColor = useColorModeValue("gray.50", "gray.800");
+  const userBgColor = useColorModeValue("brandPrimary.100", "brandPrimary.700");
+  const aiBgColor = useColorModeValue("gray.100", "gray.700");
+  const borderColor = useColorModeValue("gray.200", "gray.600");
+  const headerBgColor = useColorModeValue(
+    "brandPrimary.500",
+    "brandPrimary.600"
+  );
+  const messageTimeColor = useColorModeValue("gray.500", "gray.400");
+  const inputBgColor = useColorModeValue("white", "gray.700");
+  const footerBgColor = useColorModeValue("white", "gray.800");
+
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
+  if (recognition) {
+    recognition.continuous = false;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(transcript);
+      setIsListening(false);
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Speech recognition error", event.error);
+      setIsListening(false);
+      toast({
+        title: "Voice recognition failed",
+        description: "Please try again or use text input",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+  }
+
+  const toggleListening = () => {
+    if (!recognition) {
+      toast({
+        title: "Voice recognition not supported",
+        description: "Your browser doesn't support speech recognition",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (isListening) {
+      recognition.stop();
+    } else {
+      setIsListening(true);
+      recognition.start();
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    const checkApiStatus = async () => {
+      const status = getApiStatus();
+      setApiStatus(status);
+    };
+
+    checkApiStatus();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const storedHistory = localStorage.getItem(`chatHistory_${context}`);
+      if (storedHistory) {
+        setChatHistory(JSON.parse(storedHistory));
+      }
+    } catch (error) {
+      console.error("Failed to load chat history:", error);
+    }
+  }, [context]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      const welcomeMessages = {
+        restaurant: "Restaurant Assistant",
+        clinic: "Clinic Assistant",
+        hotel: "Hotel Assistant",
+      };
+      setMessages([
+        {
+          text: `Welcome to the ${
+            welcomeMessages[context] || "AI"
+          } Assistant! How can I help you today?`,
+          sender: "ai",
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  }, [context, messages.length]);
+
+  const handleSendMessage = async () => {
+    if (!input.trim()) return;
+
+    const userMessage = input.trim();
+    setInput("");
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        text: userMessage,
+        sender: "user",
+        timestamp: new Date(),
+      },
+    ]);
+
+    setIsLoading(true);
+
+    try {
+      const isConfirmationResponse =
+        conversationContext?.pendingConfirmation &&
+        isConfirmationMessage(userMessage);
+
+      const domainConfig = {
+        context: context,
+        data: domainData,
+      };
+
+      const response = await generateResponse(userMessage, domainConfig, {
+        sessionId,
+        userId: user?.uid,
+        conversationContext: conversationContext,
+      });
+
+      if (typeof response === "object") {
+        if (response.action === "PROCESS_ORDER") {
+          await handleOrderConfirmation(response.data);
+        } else if (response.message) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: response.message,
+              sender: "ai",
+              timestamp: new Date(),
+            },
+          ]);
+
+          if (response.updateContext) {
+            setConversationContext(response.updateContext);
+          }
+        }
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: response,
+            sender: "ai",
+            timestamp: new Date(),
+          },
+        ]);
+      }
+
+      setApiStatus(getApiStatus());
+
+      if (user) {
+        addToHistory({
+          userMessage,
+          aiResponse: response.message || response,
+          timestamp: new Date(),
+          domain: context,
+        });
+      }
+    } catch (error) {
+      console.error("Chat error:", error);
+      setApiStatus("offline");
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: "I apologize, but I'm currently experiencing connectivity issues. I'll provide basic assistance instead.",
+          sender: "ai",
+          timestamp: new Date(),
+          isError: true,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => scrollToBottom(), 100);
+    }
+  };
+
+  const handleHotelBooking = async (bookingData) => {
+    try {
+      const booking = await createBooking({
+        ...bookingData,
+        userId: user?.uid,
+        createdAt: new Date(),
+        type: "hotel",
+      });
+
+      let checkOutDate = bookingData.checkOut;
+      if (!checkOutDate && bookingData.checkIn) {
+        const tempDate = new Date(bookingData.checkIn);
+        tempDate.setDate(tempDate.getDate() + 1);
+        checkOutDate = tempDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        });
+      }
+
+      const startDate = new Date(bookingData.checkIn);
+      const endDate = new Date(checkOutDate);
+      const numberOfNights = Math.max(
+        1,
+        Math.round((endDate - startDate) / (1000 * 60 * 60 * 24))
+      );
+
+      const rate = bookingData.rate || 99;
+      const totalCost = numberOfNights * rate;
+
+      const specialRequestsSection = bookingData.specialRequests
+        ? `\n\n**Special Requests:**\n${bookingData.specialRequests}`
+        : "";
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: `✅ **Hotel Reservation Successfully Confirmed!**\n\n**Booking Reference:** ${
+            booking.id
+          }\n\n**Check-in Date:** ${
+            bookingData.checkIn
+          }\n**Check-out Date:** ${checkOutDate}\n**Room Type:** ${
+            bookingData.roomType
+          }\n**Number of Guests:** ${
+            bookingData.guests || 1
+          }\n**Length of Stay:** ${numberOfNights} night${
+            numberOfNights > 1 ? "s" : ""
+          }\n**Rate:** $${rate} per night\n**Total:** $${totalCost}${specialRequestsSection}\n\nCheck-in time starts at 3:00 PM, and check-out is until 11:00 AM. Please present a valid ID and the credit card used for booking upon arrival.
+
+Thank you for choosing ${domainData.name}! We look forward to welcoming you.`,
+          sender: "ai",
+          timestamp: new Date(),
+          isConfirmation: true,
+        },
+      ]);
+    } catch (error) {
+      console.error("Error processing hotel booking:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: "I apologize, but there was an issue processing your hotel reservation. Please try again or contact our reservations team directly at reservations@hotel.com.",
+          sender: "ai",
+          timestamp: new Date(),
+          isError: true,
+        },
+      ]);
+    }
+  };
+
+  const handleBookingConfirmation = async (bookingData) => {
+    try {
+      if (bookingData.date && !bookingData.date.includes("2025")) {
+        bookingData.date = `${bookingData.date}, 2025`;
+      }
+
+      const formattedBooking = {
+        ...bookingData,
+        type: "clinic",
+        doctor: bookingData.doctor.startsWith("Dr.")
+          ? bookingData.doctor
+          : `Dr. ${bookingData.doctor}`,
+        date: bookingData.date,
+        time: bookingData.time,
+        createdAt: new Date(),
+        userId: user?.uid,
+      };
+
+      const booking = await createBooking(formattedBooking);
+      const bookingDetails = await getBookingDetails(booking.id);
+
+      const doctorDetails = domainData.doctors.find(
+        (d) =>
+          d.name === booking.doctor.replace("Dr. ", "") ||
+          `Dr. ${d.name}` === booking.doctor
+      );
+
+      let doctorInfo = booking.doctor;
+      if (doctorDetails) {
+        doctorInfo = `${booking.doctor} (${doctorDetails.specialty})`;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: `✅ **Appointment Successfully Booked!**\n\n**Booking Reference:** ${
+            booking.id
+          }\n\n**Date:** ${bookingDetails.formattedDate}\n**Time:** ${
+            booking.time
+          }\n**Doctor:** ${doctorInfo}${
+            doctorDetails
+              ? `\n**Consultation Fee:** $${doctorDetails.consultationFee}`
+              : ""
+          }\n\nPlease arrive 15 minutes before your appointment. If you need to reschedule or cancel, please contact us at least 24 hours in advance.\n\nThank you for choosing our clinic!`,
+          sender: "ai",
+          timestamp: new Date(),
+          isConfirmation: true,
+        },
+      ]);
+
+      setConversationContext({
+        pendingAction: null,
+        lastTopic: "booking",
+        pendingConfirmation: false,
+      });
+    } catch (error) {
+      console.error("Error creating booking:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: `Sorry, there was an error booking your appointment: ${error.message}. Please try again or contact our reception at (555) 123-4567.`,
+          sender: "ai",
+          timestamp: new Date(),
+          isError: true,
+        },
+      ]);
+    }
+  };
+
+  const handleOrderConfirmation = async (orderData) => {
+    try {
+      if (!orderData.customerName || !orderData.paymentMethod) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: `To complete your order, I need:\n${
+              !orderData.customerName ? "- Your name\n" : ""
+            }${
+              !orderData.paymentMethod ? "- Your preferred payment method" : ""
+            }`,
+            sender: "ai",
+            timestamp: new Date(),
+          },
+        ]);
+        return;
+      }
+
+      const order = await processOrder({
+        ...orderData,
+        userId: user?.uid,
+        timestamp: new Date(),
+      });
+
+      const itemsList = orderData.items
+        .map((item) => `• ${item.name} × ${item.quantity}`)
+        .join("\n");
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: formatOrderConfirmation(
+            order,
+            itemsList,
+            orderData.subtotal,
+            calculatePreparationTime(orderData.items),
+            orderData
+          ),
+          sender: "ai",
+          timestamp: new Date(),
+          isConfirmation: true,
+        },
+      ]);
+
+      setConversationContext({
+        pendingAction: null,
+        lastTopic: "order",
+        pendingConfirmation: false,
+      });
+    } catch (error) {
+      console.error("Error processing order:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: "I apologize, but there was an issue processing your order. Please try again or contact our customer service.",
+          sender: "ai",
+          timestamp: new Date(),
+          isError: true,
+        },
+      ]);
+    }
+  };
+
+  const formatOrderConfirmation = (
+    order,
+    itemsList,
+    subtotal,
+    estimatedTime,
+    orderData
+  ) => {
+    const specialInstructionsSection = orderData.specialInstructions
+      ? `\n\n**Special Instructions:**\n${orderData.specialInstructions}`
+      : "";
+
+    return `✅ **Order Successfully Confirmed!**\n\n**Order #${
+      order.id
+    }**\n\n**Items:**\n${itemsList}\n\n**Subtotal:** $${subtotal.toFixed(2)}
+${
+  orderData.isDelivery ? `**Delivery Fee:** $5.99\n` : ""
+}**Total:** $${order.total.toFixed(2)}
+      
+**Estimated ${
+      orderData.isDelivery ? "Delivery" : "Preparation"
+    } Time:** ${estimatedTime} minutes${specialInstructionsSection}
+
+${
+  orderData.isDelivery
+    ? `Your order will be delivered to your address. You'll receive a notification when our delivery partner is on the way.`
+    : `Your order will be ready for pickup at our restaurant. You'll receive a notification when it's ready.`
+}
+
+Thank you for choosing ${domainData.name}!`;
+  };
+
+  const extractTopic = (message) => {
+    const lowerMessage = message.toLowerCase();
+
+    if (context === "restaurant") {
+      if (
+        lowerMessage.includes("vegetarian") ||
+        lowerMessage.includes("gluten") ||
+        lowerMessage.includes("vegan") ||
+        lowerMessage.includes("dietary")
+      ) {
+        return "dietary";
+      } else if (
+        lowerMessage.includes("delivery") ||
+        lowerMessage.includes("pickup")
+      ) {
+        return "delivery";
+      } else if (
+        lowerMessage.includes("menu") ||
+        lowerMessage.includes("food")
+      ) {
+        return "menu";
+      } else if (lowerMessage.includes("order")) {
+        return "order";
+      }
+    } else if (context === "clinic") {
+      if (lowerMessage.includes("appoint") || lowerMessage.includes("book")) {
+        return "appointment";
+      } else if (
+        lowerMessage.includes("doctor") ||
+        lowerMessage.includes("physician")
+      ) {
+        return "doctor";
+      } else if (
+        lowerMessage.includes("insurance") ||
+        lowerMessage.includes("cover")
+      ) {
+        return "insurance";
+      } else if (
+        lowerMessage.includes("service") ||
+        lowerMessage.includes("treat")
+      ) {
+        return "service";
+      }
+    } else if (context === "hotel") {
+      if (lowerMessage.includes("book") || lowerMessage.includes("reserv")) {
+        return "booking";
+      } else if (
+        lowerMessage.includes("room") ||
+        lowerMessage.includes("suite")
+      ) {
+        return "room";
+      } else if (
+        lowerMessage.includes("ameniti") ||
+        lowerMessage.includes("facility")
+      ) {
+        return "amenities";
+      } else if (
+        lowerMessage.includes("check-in") ||
+        lowerMessage.includes("check-out")
+      ) {
+        return "checkin";
+      }
+    }
+
+    return null;
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !isLoading && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied to clipboard",
+      status: "success",
+      duration: 2000,
+      isClosable: true,
+    });
+  };
+
+  const clearChat = () => {
+    setMessages([
+      {
+        text: `Welcome to the ${
+          context === "restaurant" ? "Restaurant" : "Clinic"
+        } Assistant! How can I help you today?`,
+        sender: "ai",
+        timestamp: new Date(),
+      },
+    ]);
+
+    toast({
+      title: "Chat cleared",
+      status: "info",
+      duration: 2000,
+      isClosable: true,
+    });
+  };
+
+  const formatTime = (timestamp) => {
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const formatDate = (timestamp) => {
+    return new Date(timestamp).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const messageVariants = {
+    hidden: (sender) => ({
+      opacity: 0,
+      x: sender === "user" ? 20 : -20,
+      y: 5,
+    }),
+    visible: {
+      opacity: 1,
+      x: 0,
+      y: 0,
+      transition: {
+        type: "spring",
+        stiffness: 500,
+        damping: 30,
+      },
+    },
+  };
+
+  const retryApiConnection = async () => {
+    setApiStatus("checking");
+    try {
+      const result = await reconnectApi();
+      setApiStatus(getApiStatus());
+
+      toast({
+        title: result ? "Connection restored" : "Connection failed",
+        description: result
+          ? "Successfully connected to the AI service"
+          : "Could not connect to the AI service",
+        status: result ? "success" : "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      setApiStatus("offline");
+      toast({
+        title: "Connection failed",
+        description: "Could not connect to the AI service",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const addToHistory = (chatItem) => {
+    setChatHistory((prev) => {
+      const updatedHistory = [...prev, chatItem];
+      const trimmedHistory = updatedHistory.slice(-20);
+
+      try {
+        localStorage.setItem(
+          `chatHistory_${context}`,
+          JSON.stringify(trimmedHistory)
+        );
+      } catch (error) {
+        console.error("Failed to save chat history:", error);
+      }
+
+      return trimmedHistory;
+    });
+  };
+
+  const loadConversation = (item) => {
+    setMessages([
+      {
+        text: `Welcome to the ${
+          context === "restaurant" ? "Restaurant" : "Clinic"
+        } Assistant! How can I help you today?`,
+        sender: "ai",
+        timestamp: new Date(Date.now() - 1000),
+      },
+      {
+        text: item.userMessage,
+        sender: "user",
+        timestamp: new Date(item.timestamp),
+      },
+      {
+        text: item.aiResponse,
+        sender: "ai",
+        timestamp: new Date(item.timestamp),
+      },
+    ]);
+    onClose();
+  };
+
+  const exportChat = () => {
+    try {
+      const chatText = messages
+        .map(
+          (msg) =>
+            `${msg.sender === "user" ? "You" : "AI"} (${formatTime(
+              msg.timestamp
+            )}): ${msg.text}`
+        )
+        .join("\n\n");
+
+      const blob = new Blob([chatText], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const date = new Date().toISOString().split("T")[0];
+      a.href = url;
+      a.download = `${context}_chat_${date}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Chat exported",
+        status: "success",
+        duration: 2000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast({
+        title: "Export failed",
+        status: "error",
+        duration: 2000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const renderMessageContent = (text) => {
+    if (!text) {
+      return <Text>No message content</Text>;
+    }
+
+    const cleanedText = text.replace(/\n{3,}/g, "\n\n");
+
+    if (
+      cleanedText.includes("**") ||
+      cleanedText.includes("*") ||
+      cleanedText.includes("#") ||
+      cleanedText.includes("-") ||
+      cleanedText.includes("`") ||
+      cleanedText.includes("```") ||
+      cleanedText.includes("|") ||
+      cleanedText.includes("\n\n") ||
+      cleanedText.includes("> ")
+    ) {
+      return parseMarkdown(cleanedText);
+    }
+
+    return (
+      <Text whiteSpace="pre-wrap" wordBreak="break-word">
+        {cleanedText}
+      </Text>
+    );
+  };
+
+  const isConfirmationResponse = (message) => {
+    const text = message.toLowerCase();
+    const affirmativeResponses = [
+      "yes",
+      "yeah",
+      "sure",
+      "okay",
+      "ok",
+      "confirm",
+      "definitely",
+      "absolutely",
+      "proceed",
+      "go ahead",
+      "i do",
+      "i agree",
+      "correct",
+    ];
+    const negativeResponses = [
+      "no",
+      "nope",
+      "cancel",
+      "don't",
+      "dont",
+      "negative",
+      "decline",
+      "stop",
+      "not now",
+      "i don't",
+      "i dont",
+      "incorrect",
+    ];
+
+    return (
+      affirmativeResponses.some((term) => text.includes(term)) ||
+      negativeResponses.some((term) => text.includes(term))
+    );
+  };
+
+  const isNegativeResponse = (message) => {
+    const text = message.toLowerCase();
+    const negativeResponses = [
+      "no",
+      "nope",
+      "cancel",
+      "don't",
+      "dont",
+      "negative",
+      "decline",
+      "stop",
+      "not now",
+      "i don't",
+      "i dont",
+      "incorrect",
+    ];
+
+    return negativeResponses.some((term) => text.includes(term));
+  };
+
+  const isSimpleQuery = (message) => {
+    const text = message.toLowerCase();
+    return text.endsWith("?") && text.split(" ").length < 6;
+  };
+
+  const calculatePreparationTime = (items, kitchenLoad = {}) => {
+    const baseTime = items.reduce((total, item) => {
+      const itemPrepTime = item.preparationTime || 10;
+      return total + itemPrepTime * item.quantity;
+    }, 0);
+
+    const loadFactor = kitchenLoad.currentLoad
+      ? Math.min(
+          1.5,
+          0.8 +
+            (0.1 * kitchenLoad.currentLoad) / kitchenLoad.maxSimultaneousOrders
+        )
+      : 1;
+
+    const isWeekend = new Date().getDay() === 0 || new Date().getDay() === 6;
+    const weekendFactor = isWeekend
+      ? kitchenLoad.estimationFactors?.weekendMultiplier || 1.2
+      : 1;
+
+    const currentHour = new Date().getHours();
+    const isRushHour =
+      (currentHour >= 11 && currentHour <= 14) ||
+      (currentHour >= 17 && currentHour <= 20);
+    const rushHourFactor = isRushHour
+      ? kitchenLoad.estimationFactors?.rushHourMultiplier || 1.3
+      : 1;
+
+    const adjustedTime = baseTime * loadFactor * weekendFactor * rushHourFactor;
+
+    const randomFactor = 0.9 + Math.random() * 0.2;
+
+    return Math.ceil(adjustedTime * randomFactor);
+  };
+
+  const isContinuingConversation = (message, context) => {
+    const lastTopic = context?.lastTopic;
+    if (!lastTopic) return false;
+
+    const topicKeywords = {
+      order: ["order", "food", "delivery", "menu"],
+      booking: ["appointment", "schedule", "book", "reserve"],
+      menu: ["menu", "dish", "food", "meal"],
+      delivery: ["deliver", "pickup", "takeout"],
+      room: ["room", "suite", "accommodation"],
+      amenities: ["amenity", "facility", "service"],
+      doctor: ["doctor", "physician", "specialist"],
+    };
+
+    const keywords = topicKeywords[lastTopic] || [];
+    const messageLower = message.toLowerCase();
+    return keywords.some((keyword) => messageLower.includes(keyword));
+  };
+
+  const isConfirmationMessage = (message) => {
+    const text = message.toLowerCase();
+    const affirmativeResponses = [
+      "yes",
+      "yeah",
+      "sure",
+      "okay",
+      "ok",
+      "confirm",
+      "definitely",
+      "absolutely",
+      "proceed",
+    ];
+    const negativeResponses = [
+      "no",
+      "nope",
+      "cancel",
+      "don't",
+      "dont",
+      "negative",
+      "decline",
+      "stop",
+    ];
+
+    return (
+      affirmativeResponses.some((term) => text.includes(term)) ||
+      negativeResponses.some((term) => text.includes(term))
+    );
+  };
+
+  return (
+    <Box
+      w="100%"
+      h={{ base: "calc(100vh - 200px)", md: "600px" }}
+      borderWidth="1px"
+      borderRadius="lg"
+      overflow="hidden"
+      boxShadow="xl"
+    >
+      <Flex flexDirection="column" h="100%">
+        <Box
+          p={4}
+          bg={headerBgColor}
+          color="white"
+          borderBottom="1px solid"
+          borderColor="whiteAlpha.200"
+        >
+          <Flex
+            justifyContent="space-between"
+            alignItems="center"
+            flexDirection={{ base: "column", sm: "row" }}
+            gap={{ base: 3, sm: 0 }}
+          >
+            <Flex align="center">
+              <Icon as={FaRobot} boxSize={6} mr={3} />
+              <Text fontWeight="bold" fontSize={{ base: "lg", sm: "xl" }}>
+                {context === "restaurant"
+                  ? "Restaurant"
+                  : context === "clinic"
+                  ? "Clinic"
+                  : context === "hotel"
+                  ? "Hotel"
+                  : "AI"}{" "}
+                Assistant
+              </Text>
+            </Flex>
+
+            <HStack
+              spacing={{ base: 2, sm: 3 }}
+              flexWrap="wrap"
+              justify={{ base: "center", sm: "flex-end" }}
+            >
+              {/* Status indicator with increased spinner size */}
+              {apiStatus === "checking" ? (
+                <Spinner size="md" color="white" />
+              ) : (
+                <AIStatusIndicator apiStatus={apiStatus} />
+              )}
+
+              {/* Rest of the buttons */}
+              {apiStatus === "offline" && (
+                <Tooltip label="Try reconnecting" hasArrow>
+                  <IconButton
+                    size="sm"
+                    icon={<FaSync />}
+                    aria-label="Try reconnecting"
+                    onClick={retryApiConnection}
+                    variant="ghost"
+                    color="white"
+                    _hover={{ bg: "whiteAlpha.200", color: "white" }}
+                    isLoading={apiStatus === "checking"}
+                  />
+                </Tooltip>
+              )}
+
+              <Tooltip label="Export conversation" hasArrow>
+                <IconButton
+                  size="sm"
+                  icon={<FaDownload />}
+                  aria-label="Export conversation"
+                  onClick={exportChat}
+                  variant="ghost"
+                  color="white"
+                  _hover={{ bg: "whiteAlpha.200", color: "white" }}
+                />
+              </Tooltip>
+
+              <Tooltip label="Chat history" hasArrow>
+                <IconButton
+                  size="sm"
+                  icon={<FaHistory />}
+                  aria-label="Chat history"
+                  onClick={onOpen}
+                  variant="ghost"
+                  color="white"
+                  _hover={{ bg: "whiteAlpha.200", color: "white" }}
+                />
+              </Tooltip>
+
+              <Tooltip label="Clear conversation" hasArrow>
+                <IconButton
+                  size="sm"
+                  icon={<FaTrash />}
+                  aria-label="Clear conversation"
+                  onClick={clearChat}
+                  variant="ghost"
+                  color="white"
+                  _hover={{ bg: "whiteAlpha.200", color: "white" }}
+                />
+              </Tooltip>
+            </HStack>
+          </Flex>
+        </Box>
+
+        {apiStatus === "offline" && (
+          <Alert status="warning" variant="solid" colorScheme="yellow">
+            <AlertIcon />
+            <Text>
+              Running in offline mode with limited responses.
+              <Link
+                onClick={retryApiConnection}
+                ml={2}
+                textDecoration="underline"
+              >
+                Try reconnecting
+              </Link>
+            </Text>
+          </Alert>
+        )}
+
+        <Box
+          flex="1"
+          p={{ base: 2, md: 4 }}
+          overflowY="auto"
+          bg={bgColor}
+          css={{
+            "&::-webkit-scrollbar": {
+              width: "4px",
+            },
+            "&::-webkit-scrollbar-track": {
+              width: "6px",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              background: borderColor,
+              borderRadius: "24px",
+            },
+          }}
+        >
+          <VStack spacing={{ base: 2, md: 4 }} align="stretch">
+            {messages.map((msg, index) => (
+              <MotionFlex
+                key={index}
+                justify={msg.sender === "user" ? "flex-end" : "flex-start"}
+                custom={msg.sender}
+                variants={messageVariants}
+                initial="hidden"
+                animate="visible"
+              >
+                {msg.sender === "ai" && (
+                  <Avatar
+                    size="sm"
+                    mr={2}
+                    icon={<FaRobot />}
+                    bg={msg.isError ? "red.500" : "brandPrimary.500"}
+                  />
+                )}
+
+                <MotionBox
+                  maxW={{ base: "85%", md: "70%" }}
+                  bg={msg.sender === "user" ? userBgColor : aiBgColor}
+                  p={3}
+                  borderRadius="lg"
+                  boxShadow="sm"
+                  position="relative"
+                  _hover={{
+                    "& > .message-actions": {
+                      opacity: 1,
+                    },
+                  }}
+                >
+                  {renderMessageContent(msg.text)}
+
+                  <Text
+                    fontSize="xs"
+                    color={messageTimeColor}
+                    mt={1}
+                    textAlign={msg.sender === "user" ? "right" : "left"}
+                  >
+                    {formatTime(msg.timestamp)}
+                  </Text>
+
+                  <Flex
+                    className="message-actions"
+                    position="absolute"
+                    opacity="0"
+                    transition="opacity 0.2s"
+                    right={msg.sender === "user" ? "-15px" : "auto"}
+                    left={msg.sender === "ai" ? "-15px" : "auto"}
+                    top="50%"
+                    transform="translateY(-50%)"
+                  >
+                    <Tooltip label="Copy message" hasArrow>
+                      <IconButton
+                        size="xs"
+                        icon={<FaRegCopy />}
+                        colorScheme={
+                          msg.sender === "user" ? "brandPrimary" : "gray"
+                        }
+                        variant="ghost"
+                        onClick={() => copyToClipboard(msg.text)}
+                        aria-label="Copy to clipboard"
+                      />
+                    </Tooltip>
+                  </Flex>
+                </MotionBox>
+
+                {msg.sender === "user" && (
+                  <Avatar
+                    size="sm"
+                    ml={2}
+                    icon={<FaUser />}
+                    bg="brandSecondary.500"
+                  />
+                )}
+              </MotionFlex>
+            ))}
+            <div ref={messagesEndRef} />
+          </VStack>
+        </Box>
+
+        <Box
+          p={{ base: 3, md: 5 }}
+          borderTopWidth="1px"
+          bg={footerBgColor}
+          position="relative"
+        >
+          <InputGroup size="lg">
+            <Input
+              pr="6rem"
+              h="56px"
+              placeholder="Type your message..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isLoading || isListening}
+              borderRadius="full"
+              bg={inputBgColor}
+              focusBorderColor="brandPrimary.400"
+              fontSize="md"
+              _placeholder={{ fontSize: "md" }}
+            />
+            <InputRightElement width="6rem" h="100%">
+              <HStack spacing={2} mr={2}>
+                <Tooltip
+                  label={isListening ? "Stop listening" : "Voice input"}
+                  hasArrow
+                >
+                  <IconButton
+                    size="md"
+                    h="40px"
+                    w="40px"
+                    icon={<FaMicrophone size="1.2em" />}
+                    colorScheme={isListening ? "red" : "gray"}
+                    isDisabled={isLoading}
+                    onClick={toggleListening}
+                    aria-label="Voice input"
+                    variant="ghost"
+                  />
+                </Tooltip>
+
+                <IconButton
+                  size="md"
+                  h="40px"
+                  w="40px"
+                  icon={isLoading ? <Spinner /> : <FaPaperPlane size="1.2em" />}
+                  colorScheme="brandPrimary"
+                  onClick={handleSendMessage}
+                  isDisabled={!input.trim() || isLoading || isListening}
+                  aria-label="Send message"
+                />
+              </HStack>
+            </InputRightElement>
+          </InputGroup>
+
+          {isListening && (
+            <Text fontSize="sm" color="red.500" mt={2} textAlign="center">
+              Listening... speak now
+            </Text>
+          )}
+        </Box>
+      </Flex>
+
+      <Modal isOpen={isOpen} onClose={onClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Chat History</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody maxH="70vh" overflowY="auto">
+            {chatHistory.length > 0 ? (
+              <List spacing={3}>
+                {chatHistory.map((item, index) => (
+                  <ListItem
+                    key={index}
+                    p={3}
+                    borderWidth="1px"
+                    borderRadius="md"
+                    cursor="pointer"
+                    _hover={{ bg: "gray.50", _dark: { bg: "gray.700" } }}
+                    onClick={() => loadConversation(item)}
+                  >
+                    <Text fontWeight="bold" fontSize="sm" mb={1}>
+                      {formatDate(item.timestamp)}
+                    </Text>
+                    <Text fontSize="sm" noOfLines={1}>
+                      <b>You:</b> {item.userMessage}
+                    </Text>
+                    <Text fontSize="sm" color="gray.500" noOfLines={1}>
+                      <b>AI:</b> {item.aiResponse}
+                    </Text>
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Text textAlign="center" color="gray.500">
+                No chat history found
+              </Text>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="brandPrimary" mr={3} onClick={onClose}>
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </Box>
+  );
+}
+
+export default ChatInterface;

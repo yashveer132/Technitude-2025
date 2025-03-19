@@ -1,24 +1,139 @@
-import logo from './logo.svg';
-import './App.css';
+import { ChakraProvider, Container, Box, useToast } from "@chakra-ui/react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import HomePage from "./pages/HomePage";
+import RestaurantPage from "./pages/RestaurantPage";
+import ClinicPage from "./pages/ClinicPage";
+import HotelPage from "./pages/HotelPage";
+import DashboardPage from "./pages/DashboardPage";
+import Header from "./components/common/Header";
+import Footer from "./components/common/Footer";
+import theme from "./theme";
+import { auth } from "./firebase/config";
+import { DomainProvider } from "./context/DomainContext";
+import { getApiStatus } from "./services/chatService";
+import { AuthProvider } from "./context/AuthContext";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { syncOfflineActions } from "./services/offlineService";
 
 function App() {
+  const toast = useToast();
+
+  useEffect(() => {
+    const checkConfigurations = async () => {
+      if (!auth) {
+        console.error("Firebase Auth not initialized");
+        toast({
+          title: "Firebase Auth Error",
+          description: "Authentication service not available",
+          status: "error",
+          duration: 9000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      try {
+        await auth.app.name;
+        console.log("Firebase Auth initialized successfully!");
+      } catch (error) {
+        console.error("Firebase Auth error:", error);
+        toast({
+          title: "Firebase Auth Error",
+          description: error.message,
+          status: "error",
+          duration: 9000,
+          isClosable: true,
+        });
+      }
+
+      const apiKey = process.env.REACT_APP_GOOGLE_AI_API_KEY;
+      if (!apiKey) {
+        console.error("Google AI API key not found in environment variables");
+        toast({
+          title: "Google AI API Key Missing",
+          description: "Please check your environment variables configuration",
+          status: "error",
+          duration: 9000,
+          isClosable: true,
+        });
+      } else {
+        console.log("Google AI API key is configured");
+
+        const apiStatus = getApiStatus();
+        if (apiStatus === "offline") {
+          toast({
+            title: "AI Service Unavailable",
+            description: "Running in offline mode with limited functionality",
+            status: "warning",
+            duration: 9000,
+            isClosable: true,
+          });
+        }
+      }
+    };
+
+    const handleOnline = async () => {
+      toast({
+        title: "Back Online",
+        description: "Syncing offline actions...",
+        status: "info",
+        duration: 3000,
+      });
+      await syncOfflineActions();
+    };
+
+    const handleOffline = () => {
+      toast({
+        title: "Offline Mode",
+        description: "Some features may be limited",
+        status: "warning",
+        duration: 3000,
+      });
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    checkConfigurations();
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [toast]);
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <ErrorBoundary>
+      <ChakraProvider theme={theme}>
+        <AuthProvider>
+          <DomainProvider>
+            <Box as="div" className="app-fonts">
+              <Router>
+                <Box
+                  className="App"
+                  minH="100vh"
+                  display="flex"
+                  flexDirection="column"
+                >
+                  <Header />
+                  <Container maxW="container.xl" flex="1" py={8}>
+                    <Routes>
+                      <Route path="/" element={<HomePage />} />
+                      <Route path="/restaurant" element={<RestaurantPage />} />
+                      <Route path="/clinic" element={<ClinicPage />} />
+                      <Route path="/hotel" element={<HotelPage />} />
+                      <Route path="/dashboard" element={<DashboardPage />} />
+                    </Routes>
+                  </Container>
+                  <Footer />
+                </Box>
+              </Router>
+            </Box>
+          </DomainProvider>
+        </AuthProvider>
+      </ChakraProvider>
+    </ErrorBoundary>
   );
 }
 
