@@ -37,6 +37,9 @@ import {
 } from "react-icons/fa";
 import PageTransition from "../components/common/PageTransition";
 import { keyframes } from "@emotion/react";
+import { useEffect } from "react";
+import { useServices } from "../context/ServiceContext";
+import { trackError } from "../utils/analytics";
 
 const MotionBox = motion(Box);
 const MotionHeading = motion(Heading);
@@ -77,6 +80,23 @@ const glowAnimation = keyframes`
 
 function HomePage() {
   const navigate = useNavigate();
+  const { domainLoader, optimization } = useServices();
+
+  useEffect(() => {
+    const preloadDomains = async () => {
+      try {
+        await domainLoader.preloadDomains(["restaurant", "clinic"]);
+        await optimization.preloadData(["commonPhrases", "greetings"], (key) =>
+          import(`../data/${key}.js`)
+        );
+      } catch (error) {
+        trackError(error, "preload_domains");
+      }
+    };
+
+    preloadDomains();
+  }, [domainLoader, optimization]);
+
   const bgGradient = useColorModeValue(
     "linear(to-br, brandPrimary.600, brandPrimary.800)",
     "linear(to-br, gray.700, gray.900)"

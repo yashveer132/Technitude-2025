@@ -125,6 +125,15 @@ export const generateResponse = async (prompt, domainConfig, options = {}) => {
   const { userId } = options;
 
   try {
+    if (currentState.pendingConfirmation) {
+      const response = await handleConfirmationResponse(
+        currentState,
+        prompt,
+        sessionId
+      );
+      if (response) return response;
+    }
+
     if (currentState.pendingAction) {
       const response = await handlePendingAction(
         currentState,
@@ -166,6 +175,106 @@ export const generateResponse = async (prompt, domainConfig, options = {}) => {
   } catch (error) {
     return handleError(error, domainConfig, prompt);
   }
+};
+
+const handleConfirmationResponse = async (currentState, prompt, sessionId) => {
+  const isAffirmative = isAffirmativeResponse(prompt);
+  const isNegative = isNegativeResponse(prompt);
+
+  if (!isAffirmative && !isNegative) return null;
+
+  const { action, data } = currentState.pendingAction || {};
+
+  if (isAffirmative) {
+    switch (action) {
+      case "CONFIRM_ORDER":
+        return {
+          action: "PROCESS_ORDER",
+          data: {
+            ...data,
+            confirmed: true,
+            timestamp: new Date(),
+          },
+          keepContext: true,
+        };
+      case "CONFIRM_BOOKING":
+        try {
+          const booking = await createBooking({
+            ...data,
+            confirmed: true,
+            timestamp: new Date(),
+          });
+
+          return {
+            message:
+              `✅ Appointment confirmed!\n\n` +
+              `Booking Reference: ${booking.id}\n` +
+              `Doctor: Dr. ${data.doctor}\n` +
+              `Date: ${data.date}\n` +
+              `Time: ${data.time}\n` +
+              `Fee: $${data.fee}\n\n` +
+              `Please arrive 15 minutes early. Don't forget to bring:\n` +
+              `- Photo ID\n` +
+              `- Insurance card\n` +
+              `- List of current medications\n\n` +
+              `Need to reschedule? Call us at least 24 hours in advance.`,
+            updateContext: {
+              pendingAction: null,
+              lastTopic: "booking_complete",
+              bookingRef: booking.id,
+            },
+          };
+        } catch (error) {
+          return {
+            message:
+              "I apologize, but there was an error processing your booking. " +
+              "Please try again or contact our reception at (555) 123-4567.",
+            isError: true,
+          };
+        }
+    }
+  } else {
+    return {
+      message:
+        "I understand you don't want to proceed. How else can I assist you today?",
+      updateContext: {
+        pendingAction: null,
+        lastTopic: currentState.lastTopic,
+        pendingConfirmation: false,
+      },
+    };
+  }
+};
+
+const isAffirmativeResponse = (text) => {
+  const affirmativeResponses = [
+    "yes",
+    "yeah",
+    "sure",
+    "okay",
+    "ok",
+    "confirm",
+    "definitely",
+    "absolutely",
+    "proceed",
+    "correct",
+  ];
+  return affirmativeResponses.some((term) => text.toLowerCase().includes(term));
+};
+
+const isNegativeResponse = (text) => {
+  const negativeResponses = [
+    "no",
+    "nope",
+    "cancel",
+    "don't",
+    "dont",
+    "negative",
+    "decline",
+    "stop",
+    "incorrect",
+  ];
+  return negativeResponses.some((term) => text.toLowerCase().includes(term));
 };
 
 const handlePendingAction = async (currentState, prompt, sessionId) => {
@@ -409,48 +518,172 @@ const handleDomainActions = async (
 };
 
 const handleClinicBooking = async (prompt, domainConfig, sessionId) => {
-  const bookingDetails = extractBookingDetails(prompt, domainConfig);
+  const currentState = conversationState.get(sessionId) || {};
+  const bookingDetails = {
+    ...currentState.bookingDetails,
+    ...extractBookingDetails(prompt, domainConfig),
+  };
 
-  if (bookingDetails.doctor && bookingDetails.date) {
-    conversationState.set(sessionId, {
-      pendingAction: {
-        action: "CONFIRM_BOOKING",
-        data: bookingDetails,
-      },
-      lastTopic: "booking",
-      pendingConfirmation: true,
-    });
+  const { data } = domainConfig;
 
-    return {
-      message: `I've prepared an appointment with Dr. ${
-        bookingDetails.doctor
-      } on ${bookingDetails.date} at ${
-        bookingDetails.time || "the first available time"
-      }. Would you like to confirm this booking?`,
-      requiresConfirmation: true,
-      pendingAction: "CONFIRM_BOOKING",
-    };
+  if (
+    currentState.pendingAction?.action === "CONFIRM_BOOKING" &&
+    (prompt.toLowerCase().includes("yes") ||
+      prompt.toLowerCase().includes("yeah"))
+  ) {
+    const nameMatch = prompt.match(/(?:name\s+is\s+)?(\w+(?:\s+\w+)*)/i);
+    if (nameMatch) {
+      bookingDetails.patientName = nameMatch[1];
+    }
+
+    if (bookingDetails.patientName) {
+      return {
+        action: "PROCESS_BOOKING",
+        data: {
+          ...bookingDetails,
+          confirmed: true,
+          timestamp: new Date(),
+        },
+      };
+    }
   }
 
-  return {
-    message:
-      "To book an appointment, I'll need to know your preferred doctor and date. Would you please provide these details?",
-    updateContext: {
-      lastTopic: "booking",
-      pendingConfirmation: false,
-    },
-  };
+  if (bookingDetails.doctor && bookingDetails.date && bookingDetails.time) {
+    const doctor = data.doctors.find((d) =>
+      d.name
+        .toLowerCase()
+        .includes(bookingDetails.doctor.toLowerCase().replace("dr.", "").trim())
+    );
+
+    if (doctor) {
+      const validation = await validateBookingRequest(
+        doctor,
+        bookingDetails.date,
+        bookingDetails.time
+      );
+
+      if (validation.isValid) {
+        conversationState.set(sessionId, {
+          pendingAction: {
+            action: "CONFIRM_BOOKING",
+            data: {
+              ...bookingDetails,
+              doctorId: doctor.id,
+              fee: doctor.consultationFee,
+              specialty: doctor.specialty,
+            },
+          },
+          lastTopic: "booking_confirmation",
+          bookingStage: "confirmation",
+          bookingDetails,
+        });
+
+        let message = `I've prepared your appointment with details:\n\n`;
+        message += `Doctor: Dr. ${doctor.name} (${doctor.specialty})\n`;
+        message += `Date: ${bookingDetails.date}\n`;
+        message += `Time: ${bookingDetails.time}\n`;
+        message += `Consultation Fee: $${doctor.consultationFee}\n\n`;
+
+        if (!bookingDetails.patientName) {
+          message += `To complete the booking, please provide:\n`;
+          message += `- Your name for the appointment\n`;
+        }
+
+        message += `\nWould you like to confirm this appointment?`;
+
+        return {
+          message,
+          requiresConfirmation: true,
+          updateContext: {
+            lastTopic: "booking_confirmation",
+            pendingConfirmation: true,
+          },
+        };
+      } else {
+        return {
+          message: `I apologize, but that time slot is no longer available. Here are the available slots for Dr. ${
+            doctor.name
+          } on ${bookingDetails.date}:\n${validation.availableSlots.join(
+            ", "
+          )}\n\nWould you like to select a different time?`,
+          updateContext: {
+            lastTopic: "booking_time",
+            selectedDoctor: doctor.name,
+            selectedDate: bookingDetails.date,
+            bookingStage: "time_selection",
+          },
+        };
+      }
+    }
+  }
+
+  if (
+    prompt.toLowerCase().includes("book") ||
+    prompt.toLowerCase().includes("appointment")
+  ) {
+    if (!bookingDetails.doctor) {
+      const availableDoctors = data.doctors.filter((d) => d.available);
+
+      return {
+        message:
+          "I'll help you book an appointment. Here are our available doctors:\n\n" +
+          availableDoctors
+            .map(
+              (doc) =>
+                `• Dr. ${doc.name} (${doc.specialty}) - $${doc.consultationFee} per visit`
+            )
+            .join("\n") +
+          "\n\nWhich doctor would you like to see?",
+        updateContext: {
+          lastTopic: "booking_start",
+          bookingStage: "doctor_selection",
+        },
+      };
+    }
+  }
 };
 
 const handleRestaurantOrder = async (prompt, domainConfig, sessionId) => {
-  const orderDetails = extractOrderDetails(prompt, domainConfig);
+  const currentState = conversationState.get(sessionId) || {};
+  const orderDetails = {
+    ...currentState.orderDetails,
+    ...extractOrderDetails(prompt, domainConfig),
+  };
+
   const { data } = domainConfig;
 
-  if (orderDetails.items && orderDetails.items.length > 0) {
+  if (
+    currentState.pendingAction?.action === "CONFIRM_ORDER" &&
+    (prompt.toLowerCase().includes("yes") ||
+      prompt.toLowerCase().includes("yeah"))
+  ) {
+    const nameMatch = prompt.match(/(\w+(?:\s+\w+)*),\s*(card|cash)/i);
+    if (nameMatch) {
+      orderDetails.customerName = nameMatch[1];
+      orderDetails.paymentMethod = nameMatch[2].toLowerCase();
+    }
+
+    if (orderDetails.customerName && orderDetails.paymentMethod) {
+      return {
+        action: "PROCESS_ORDER",
+        data: {
+          ...orderDetails,
+          confirmed: true,
+          timestamp: new Date(),
+        },
+      };
+    }
+  }
+
+  if (orderDetails.items?.length > 0) {
     const subtotal = calculateOrderTotal(orderDetails);
     const total =
       subtotal +
       (orderDetails.isDelivery ? data.orderInformation.deliveryFee : 0);
+    const estimatedTime = calculateEstimatedTime(
+      orderDetails,
+      data.kitchenCapacity
+    );
 
     conversationState.set(sessionId, {
       pendingAction: {
@@ -459,74 +692,76 @@ const handleRestaurantOrder = async (prompt, domainConfig, sessionId) => {
           ...orderDetails,
           subtotal,
           total,
-          customerName: extractCustomerName(prompt),
-          paymentMethod: extractPaymentMethod(prompt),
+          estimatedTime,
+          restaurantName: data.name,
         },
       },
       lastTopic: "order",
       pendingConfirmation: true,
+      orderDetails,
     });
 
-    const itemsList = orderDetails.items
-      .map(
-        (item) =>
-          `${item.name} x${item.quantity} ($${(
-            item.price * item.quantity
-          ).toFixed(2)})`
-      )
-      .join("\n");
+    let message = formatOrderConfirmation(orderDetails);
+    if (!orderDetails.customerName || !orderDetails.paymentMethod) {
+      message += "\n\nTo complete your order, please provide:\n";
+      if (!orderDetails.customerName) message += "- Your name\n";
+      if (!orderDetails.paymentMethod)
+        message += "- Payment method (cash or card)";
+    }
 
     return {
-      message: `I've prepared your order:\n\n${itemsList}\n\nSubtotal: $${subtotal.toFixed(
-        2
-      )}${
-        orderDetails.isDelivery
-          ? `\nDelivery Fee: $${data.orderInformation.deliveryFee.toFixed(2)}`
-          : ""
-      }\nTotal: $${total.toFixed(2)}\n\nWould you like to confirm this order?`,
+      message,
       requiresConfirmation: true,
-      pendingAction: "CONFIRM_ORDER",
+      updateContext: {
+        lastTopic: "order",
+        pendingConfirmation: true,
+      },
     };
   }
 
-  const extractCustomerName = (query) => {
-    const namePatterns = [
-      /(?:my|the) name is\s+([A-Za-z\s]+)/i,
-      /name:?\s+([A-Za-z\s]+)/i,
-      /(?:i am|i'm)\s+([A-Za-z\s]+)/i,
-    ];
-
-    for (const pattern of namePatterns) {
-      const match = query.match(pattern);
-      if (match) return match[1].trim();
-    }
-    return null;
-  };
-
-  const extractPaymentMethod = (query) => {
-    const paymentKeywords = {
-      card: ["card", "credit", "debit", "visa", "mastercard"],
-      cash: ["cash", "money", "pay in person"],
-      digital: ["digital", "google pay", "apple pay", "online"],
-    };
-
-    const lowerQuery = query.toLowerCase();
-    for (const [method, keywords] of Object.entries(paymentKeywords)) {
-      if (keywords.some((keyword) => lowerQuery.includes(keyword))) {
-        return method;
-      }
-    }
-    return null;
-  };
-
   return {
-    message:
-      "I'll help you place an order. What items would you like to order?",
+    message: "What would you like to order from our menu?",
     updateContext: {
       lastTopic: "order",
       pendingConfirmation: false,
     },
   };
+};
+
+const formatOrderItems = (items) => {
+  return items
+    .map(
+      (item) =>
+        `• ${item.name} x${item.quantity} ($${(
+          item.price * item.quantity
+        ).toFixed(2)})`
+    )
+    .join("\n");
+};
+
+const calculateEstimatedTime = (orderDetails, kitchenCapacity) => {
+  const { currentLoad, maxSimultaneousOrders, estimationFactors } =
+    kitchenCapacity;
+  const loadFactor = currentLoad / maxSimultaneousOrders;
+
+  let totalTime = 0;
+  orderDetails.items.forEach((item) => {
+    let itemTime =
+      orderDetails.data?.menu?.find((m) => m.id === item.id)?.preparationTime ||
+      15;
+    itemTime *= item.quantity;
+    totalTime += itemTime;
+  });
+
+  if (loadFactor > 0.8) {
+    totalTime *= estimationFactors.rushHourMultiplier;
+  }
+
+  if ([0, 6].includes(new Date().getDay())) {
+    totalTime *= estimationFactors.weekendMultiplier;
+  }
+
+  return Math.ceil(totalTime);
 };
 
 const handleHotelBooking = async (prompt, domainConfig, sessionId) => {
@@ -712,6 +947,24 @@ const extractBookingDetails = (prompt, domainConfig) => {
       doc.name.toLowerCase().includes(doctorName.toLowerCase())
     );
     formattedDoctor = matchedDoctor ? matchedDoctor.name : doctorName;
+  }
+
+  const symptomsMap = {
+    skin: "Dermatologist",
+    heart: "Cardiologist",
+    child: "Pediatrician",
+    bone: "Orthopedic Surgeon",
+  };
+
+  for (const [symptom, specialty] of Object.entries(symptomsMap)) {
+    if (query.includes(symptom)) {
+      const specialistDoc = data.doctors.find(
+        (d) => d.specialty === specialty && d.available
+      );
+      if (specialistDoc) {
+        formattedDoctor = specialistDoc.name;
+      }
+    }
   }
 
   return {

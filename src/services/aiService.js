@@ -85,6 +85,24 @@ function getOfflineResponse(prompt, context) {
   const query = prompt.toLowerCase();
 
   if (context === "restaurant") {
+    if (
+      query.includes("menu") ||
+      query.includes("food") ||
+      query.includes("eat")
+    ) {
+      return generateMenuResponse(query);
+    } else if (query.includes("order") || query.includes("delivery")) {
+      return handleOrderQuery(query);
+    } else if (query.includes("time") || query.includes("wait")) {
+      return generateWaitTimeResponse();
+    } else if (query.includes("dietary") || query.includes("allergy")) {
+      return generateDietaryResponse(query);
+    } else if (query.includes("special") || query.includes("deal")) {
+      return generateSpecialsResponse();
+    }
+  }
+
+  if (context === "restaurant") {
     if (query.includes("vegetarian")) {
       return "We have several delicious vegetarian options on our menu. Our most popular choices include the Mediterranean Veggie Platter with housemade hummus, the Vegetarian Buddha Bowl with seasonal roasted vegetables and quinoa, and our signature Mushroom Risotto with truffle oil. All dishes can be prepared vegan upon request.";
     } else if (query.includes("gluten-free") || query.includes("gluten free")) {
@@ -184,6 +202,54 @@ function getOfflineResponse(prompt, context) {
   }
 
   return "I'm here to help! Please let me know what information you're looking for, and I'll be happy to provide professional assistance tailored to your needs.";
+}
+
+function generateMenuResponse(query) {
+  if (query.includes("popular")) {
+    return "Our most popular dishes include the Vegetarian Buddha Bowl, Grilled Salmon, and our signature Thai Curry. Would you like to know more about any of these dishes?";
+  }
+  return "Our menu features a diverse selection of dishes including appetizers, main courses, and desserts. We specialize in both vegetarian and non-vegetarian options. Would you like to see our full menu or specific categories?";
+}
+
+function handleOrderQuery(query) {
+  if (query.includes("delivery")) {
+    return "We offer delivery within a 5-mile radius. The delivery fee is $3.99, waived for orders over $25. Would you like to place a delivery order?";
+  }
+  return "I'll be happy to help you place an order. Would you like to start with our popular dishes or see the full menu?";
+}
+
+function generateWaitTimeResponse() {
+  const currentHour = new Date().getHours();
+  const isRushHour =
+    (currentHour >= 11 && currentHour <= 14) ||
+    (currentHour >= 17 && currentHour <= 20);
+  return `Current wait times are ${
+    isRushHour ? "25-35" : "15-20"
+  } minutes for most dishes. Would you like to place an order?`;
+}
+
+function generateDietaryResponse(query) {
+  if (query.includes("vegetarian")) {
+    return "We have a wide range of vegetarian options, including dishes made with fresh vegetables, legumes, and plant-based proteins. All our vegetarian dishes can be modified to be vegan upon request.";
+  } else if (query.includes("gluten")) {
+    return "Our gluten-free menu includes a variety of dishes prepared with special care to avoid cross-contamination. We use dedicated cooking spaces and utensils for gluten-free preparation.";
+  } else if (query.includes("allergy")) {
+    return "We take food allergies very seriously. Please let us know your specific allergies, and our chef will ensure your meal is prepared safely in a separate area with appropriate precautions.";
+  }
+  return "We accommodate various dietary requirements including vegetarian, vegan, gluten-free, and other allergies. Please let us know your specific needs, and we'll be happy to assist.";
+}
+
+function generateSpecialsResponse() {
+  const currentHour = new Date().getHours();
+  const isLunchTime = currentHour >= 11 && currentHour <= 15;
+  const isDinnerTime = currentHour >= 17 && currentHour <= 22;
+
+  if (isLunchTime) {
+    return "Our lunch specials today include a choice of soup or salad with any main course. We also offer a business lunch combo with appetizer, main course, and dessert.";
+  } else if (isDinnerTime) {
+    return "Tonight's dinner specials feature our chef's signature dishes and a special prix fixe menu that includes an appetizer, main course, and dessert.";
+  }
+  return "We offer daily specials and seasonal menu items. Our staff can tell you about today's featured dishes and current promotions.";
 }
 
 export const enhanceResponseWithDomainData = (

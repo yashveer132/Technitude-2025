@@ -15,6 +15,8 @@ import { getApiStatus } from "./services/chatService";
 import { AuthProvider } from "./context/AuthContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { syncOfflineActions } from "./services/offlineService";
+import { ServiceProvider } from "./context/ServiceContext";
+import { SettingsProvider } from "./context/SettingsContext";
 
 function App() {
   const toast = useToast();
@@ -106,32 +108,42 @@ function App() {
   return (
     <ErrorBoundary>
       <ChakraProvider theme={theme}>
-        <AuthProvider>
-          <DomainProvider>
-            <Box as="div" className="app-fonts">
-              <Router>
-                <Box
-                  className="App"
-                  minH="100vh"
-                  display="flex"
-                  flexDirection="column"
-                >
-                  <Header />
-                  <Container maxW="container.xl" flex="1" py={8}>
-                    <Routes>
-                      <Route path="/" element={<HomePage />} />
-                      <Route path="/restaurant" element={<RestaurantPage />} />
-                      <Route path="/clinic" element={<ClinicPage />} />
-                      <Route path="/hotel" element={<HotelPage />} />
-                      <Route path="/dashboard" element={<DashboardPage />} />
-                    </Routes>
-                  </Container>
-                  <Footer />
+        <ServiceProvider>
+          <SettingsProvider>
+            <AuthProvider>
+              <DomainProvider>
+                <Box as="div" className="app-fonts">
+                  <Router>
+                    <Box
+                      className="App"
+                      minH="100vh"
+                      display="flex"
+                      flexDirection="column"
+                    >
+                      <Header />
+                      <Container maxW="container.xl" flex="1" py={8}>
+                        <Routes>
+                          <Route path="/" element={<HomePage />} />
+                          <Route
+                            path="/restaurant"
+                            element={<RestaurantPage />}
+                          />
+                          <Route path="/clinic" element={<ClinicPage />} />
+                          <Route path="/hotel" element={<HotelPage />} />
+                          <Route
+                            path="/dashboard"
+                            element={<DashboardPage />}
+                          />
+                        </Routes>
+                      </Container>
+                      <Footer />
+                    </Box>
+                  </Router>
                 </Box>
-              </Router>
-            </Box>
-          </DomainProvider>
-        </AuthProvider>
+              </DomainProvider>
+            </AuthProvider>
+          </SettingsProvider>
+        </ServiceProvider>
       </ChakraProvider>
     </ErrorBoundary>
   );

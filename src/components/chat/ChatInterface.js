@@ -31,6 +31,10 @@ import {
   List,
   ListItem,
   Icon,
+  FormControl,
+  FormLabel,
+  Switch,
+  Select,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import {
@@ -44,6 +48,9 @@ import {
   FaDownload,
   FaHistory,
 } from "react-icons/fa";
+import { BiReset } from "react-icons/bi";
+import { MdOutlinePreview, MdSettings } from "react-icons/md";
+import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
 import {
   generateAIResponse,
   enhanceResponseWithDomainData,
@@ -61,11 +68,19 @@ import {
   getApiStatus,
   reconnectApi,
 } from "../../services/chatService";
+import { useServices } from "../../context/ServiceContext";
+import { trackUserInteraction, trackError } from "../../utils/analytics";
+import { getDemoQueries, runDemoSequence } from "../../utils/demoQueries";
+import { useSettings } from "../../context/SettingsContext";
+import { MessageTypingIndicator } from "./MessageTypingIndicator";
+import ChatSettings from "./ChatSettings";
 
 const MotionBox = motion(Box);
 const MotionFlex = motion(Flex);
 
 function ChatInterface({ context, domainData }) {
+  const { accessibility, optimization } = useServices();
+  const { settings, updateSettings } = useSettings();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -83,6 +98,63 @@ function ChatInterface({ context, domainData }) {
     lastTopic: null,
     pendingConfirmation: false,
   });
+
+  const promptForMissingInfo = (orderData) => {
+    const message = `To complete your order, I'll need a few more details:
+${!orderData.customerName ? "\n- Your name for the order" : ""}
+${
+  !orderData.paymentMethod
+    ? "\n- Preferred payment method (cash, card, or digital payment)"
+    : ""
+}
+
+Please provide these details so I can confirm your order.`;
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        text: message,
+        sender: "ai",
+        timestamp: new Date(),
+      },
+    ]);
+  };
+
+  const formatOrderItems = (items) => {
+    return items
+      .map(
+        (item) =>
+          `• ${item.name} x${item.quantity} ($${(
+            item.price * item.quantity
+          ).toFixed(2)})`
+      )
+      .join("\n");
+  };
+
+  const resetConversationContext = () => {
+    setConversationContext({
+      pendingAction: null,
+      lastTopic: null,
+      pendingConfirmation: false,
+    });
+  };
+
+  const handleOrderError = (error) => {
+    console.error("Order error:", error);
+    setMessages((prev) => [
+      ...prev,
+      {
+        text: `I apologize, but there was an error processing your order: ${error.message}. Please try again or contact our support.`,
+        sender: "ai",
+        timestamp: new Date(),
+        isError: true,
+      },
+    ]);
+  };
+
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
 
   const bgColor = useColorModeValue("gray.50", "gray.800");
   const userBgColor = useColorModeValue("brandPrimary.100", "brandPrimary.700");
@@ -194,43 +266,88 @@ function ChatInterface({ context, domainData }) {
     }
   }, [context, messages.length]);
 
-  const handleSendMessage = async () => {
-    if (!input.trim()) return;
+  const checkOrderCompletion = (message, currentContext) => {
+    if (!currentContext.pendingAction && currentContext.lastTopic === "order") {
+      if (
+        /thank|thanks|great|perfect|okay|ok|sure|yes/i.test(
+          message.toLowerCase()
+        )
+      ) {
+        return "Would you like to place another order or is there anything else I can help you with?";
+      }
+    }
+    return null;
+  };
 
-    const userMessage = input.trim();
+  const checkRestaurantConversationEnd = (message) => {
+    const endPhrases = [
+      "bye",
+      "goodbye",
+      "that's all",
+      "that is all",
+      "nothing else",
+      "no thanks",
+      "thank you",
+      "thanks",
+    ];
+
+    if (endPhrases.some((phrase) => message.toLowerCase().includes(phrase))) {
+      return "Thank you for choosing our restaurant! Have a great day!";
+    }
+    return null;
+  };
+
+  const isRestaurantQueryResolved = (query, response) => {
+    const checks = {
+      menu: /our menu|we offer|available dishes/i,
+      order: /order (confirmed|placed)|preparing your order/i,
+      delivery: /delivery (time|fee|details)|deliver to your/i,
+      timing: /preparation time|wait time|ready in/i,
+      dietary: /vegetarian|gluten-free|allergen/i,
+    };
+
+    for (const [type, pattern] of Object.entries(checks)) {
+      if (query.toLowerCase().includes(type) && pattern.test(response)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const handleSendMessage = async (messageText) => {
+    const message = messageText || input.trim();
+    if (!message) return;
+
     setInput("");
+    setIsLoading(true);
 
     setMessages((prev) => [
       ...prev,
       {
-        text: userMessage,
+        text: message,
         sender: "user",
         timestamp: new Date(),
       },
     ]);
 
-    setIsLoading(true);
-
     try {
-      const isConfirmationResponse =
-        conversationContext?.pendingConfirmation &&
-        isConfirmationMessage(userMessage);
-
-      const domainConfig = {
-        context: context,
-        data: domainData,
-      };
-
-      const response = await generateResponse(userMessage, domainConfig, {
-        sessionId,
-        userId: user?.uid,
-        conversationContext: conversationContext,
-      });
+      const response = await generateResponse(
+        message,
+        {
+          context,
+          data: domainData,
+        },
+        {
+          sessionId,
+          userId: user?.uid,
+          conversationContext,
+        }
+      );
 
       if (typeof response === "object") {
         if (response.action === "PROCESS_ORDER") {
           await handleOrderConfirmation(response.data);
-        } else if (response.message) {
+        } else {
           setMessages((prev) => [
             ...prev,
             {
@@ -254,25 +371,12 @@ function ChatInterface({ context, domainData }) {
           },
         ]);
       }
-
-      setApiStatus(getApiStatus());
-
-      if (user) {
-        addToHistory({
-          userMessage,
-          aiResponse: response.message || response,
-          timestamp: new Date(),
-          domain: context,
-        });
-      }
     } catch (error) {
-      console.error("Chat error:", error);
-      setApiStatus("offline");
-
+      console.error("Error processing message:", error);
       setMessages((prev) => [
         ...prev,
         {
-          text: "I apologize, but I'm currently experiencing connectivity issues. I'll provide basic assistance instead.",
+          text: "I apologize, but I encountered an error processing your request. Please try again.",
           sender: "ai",
           timestamp: new Date(),
           isError: true,
@@ -280,7 +384,23 @@ function ChatInterface({ context, domainData }) {
       ]);
     } finally {
       setIsLoading(false);
-      setTimeout(() => scrollToBottom(), 100);
+    }
+  };
+
+  const handleVoiceInput = async () => {
+    try {
+      const transcript = await accessibility.startVoiceInput();
+      setInput(transcript);
+      handleSendMessage(transcript);
+    } catch (error) {
+      trackError(error, "voice_input");
+      toast({
+        title: "Voice input failed",
+        description: "Please try again or use text input",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
 
@@ -355,88 +475,91 @@ Thank you for choosing ${domainData.name}! We look forward to welcoming you.`,
 
   const handleBookingConfirmation = async (bookingData) => {
     try {
-      if (bookingData.date && !bookingData.date.includes("2025")) {
-        bookingData.date = `${bookingData.date}, 2025`;
+      if (!bookingData.patientName) {
+        setMessages(prev => [...prev, {
+          text: "To complete your booking, please provide your name for the appointment.",
+          sender: "ai",
+          timestamp: new Date()
+        }]);
+        return;
       }
-
-      const formattedBooking = {
+  
+      const booking = await createBooking({
         ...bookingData,
         type: "clinic",
-        doctor: bookingData.doctor.startsWith("Dr.")
-          ? bookingData.doctor
-          : `Dr. ${bookingData.doctor}`,
-        date: bookingData.date,
-        time: bookingData.time,
-        createdAt: new Date(),
         userId: user?.uid,
-      };
-
-      const booking = await createBooking(formattedBooking);
-      const bookingDetails = await getBookingDetails(booking.id);
-
-      const doctorDetails = domainData.doctors.find(
-        (d) =>
-          d.name === booking.doctor.replace("Dr. ", "") ||
-          `Dr. ${d.name}` === booking.doctor
+        status: "confirmed",
+        createdAt: new Date()
+      });
+  
+      const doctor = domainData.doctors.find(d => 
+        d.name === booking.doctor.replace("Dr. ", "") || 
+        `Dr. ${d.name}` === booking.doctor
       );
-
-      let doctorInfo = booking.doctor;
-      if (doctorDetails) {
-        doctorInfo = `${booking.doctor} (${doctorDetails.specialty})`;
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: `✅ **Appointment Successfully Booked!**\n\n**Booking Reference:** ${
-            booking.id
-          }\n\n**Date:** ${bookingDetails.formattedDate}\n**Time:** ${
-            booking.time
-          }\n**Doctor:** ${doctorInfo}${
-            doctorDetails
-              ? `\n**Consultation Fee:** $${doctorDetails.consultationFee}`
-              : ""
-          }\n\nPlease arrive 15 minutes before your appointment. If you need to reschedule or cancel, please contact us at least 24 hours in advance.\n\nThank you for choosing our clinic!`,
-          sender: "ai",
-          timestamp: new Date(),
-          isConfirmation: true,
-        },
-      ]);
-
+  
+      const confirmationMessage = generateBookingConfirmation(booking, doctor);
+      
+      setMessages(prev => [...prev, {
+        text: confirmationMessage,
+        sender: "ai",
+        timestamp: new Date(),
+        isConfirmation: true
+      }]);
+  
       setConversationContext({
         pendingAction: null,
-        lastTopic: "booking",
-        pendingConfirmation: false,
+        lastTopic: "booking_complete",
+        pendingConfirmation: false
       });
-    } catch (error) {
-      console.error("Error creating booking:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: `Sorry, there was an error booking your appointment: ${error.message}. Please try again or contact our reception at (555) 123-4567.`,
+  
+      // Send follow-up message after delay
+      setTimeout(() => {
+        setMessages(prev => [...prev, {
+          text: "Is there anything else you would like to know about our clinic services?",
           sender: "ai",
-          timestamp: new Date(),
-          isError: true,
-        },
-      ]);
+          timestamp: new Date()
+        }]);
+      }, 2000);
+  
+    } catch (error) {
+      handleBookingError(error);
     }
   };
+  
+  const generateBookingConfirmation = (booking, doctor) => {
+    return `✅ **Appointment Successfully Booked!**
+  
+  **Booking Reference:** ${booking.id}
+  **Patient Name:** ${booking.patientName}
+  **Doctor:** Dr. ${doctor.name} (${doctor.specialty})
+  **Date:** ${booking.formattedDate}
+  **Time:** ${booking.time}
+  **Consultation Fee:** $${doctor.consultationFee}
+  
+  📋 **Important Reminders:**
+  • Please arrive 15 minutes before your appointment
+  • Bring valid ID and insurance card
+  • If you need to cancel/reschedule, please do so 24 hours in advance
+  • Call ${domainData.phone} for any questions
+  
+  Thank you for choosing ${domainData.name}!`;
+  };
+  
+  const handleBookingError = (error) => {
+    console.error("Booking error:", error);
+    setMessages(prev => [...prev, {
+      text: `I apologize, but there was an error processing your appointment: ${error.message}. Please try again or contact our reception at ${domainData.phone}.`,
+      sender: "ai",
+      timestamp: new Date(),
+      isError: true
+    }]);
+  };
+  
 
   const handleOrderConfirmation = async (orderData) => {
     try {
       if (!orderData.customerName || !orderData.paymentMethod) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            text: `To complete your order, I need:\n${
-              !orderData.customerName ? "- Your name\n" : ""
-            }${
-              !orderData.paymentMethod ? "- Your preferred payment method" : ""
-            }`,
-            sender: "ai",
-            timestamp: new Date(),
-          },
-        ]);
+        promptForMissingInfo(orderData);
         return;
       }
 
@@ -446,74 +569,70 @@ Thank you for choosing ${domainData.name}! We look forward to welcoming you.`,
         timestamp: new Date(),
       });
 
-      const itemsList = orderData.items
-        .map((item) => `• ${item.name} × ${item.quantity}`)
-        .join("\n");
+      const itemsList = formatOrderItems(orderData.items);
+      const confirmationMessage = generateOrderConfirmation(
+        order,
+        itemsList,
+        orderData
+      );
 
       setMessages((prev) => [
         ...prev,
         {
-          text: formatOrderConfirmation(
-            order,
-            itemsList,
-            orderData.subtotal,
-            calculatePreparationTime(orderData.items),
-            orderData
-          ),
+          text: confirmationMessage,
           sender: "ai",
           timestamp: new Date(),
           isConfirmation: true,
         },
       ]);
 
-      setConversationContext({
-        pendingAction: null,
-        lastTopic: "order",
-        pendingConfirmation: false,
-      });
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: "Is there anything else I can help you with?",
+            sender: "ai",
+            timestamp: new Date(),
+          },
+        ]);
+      }, 1000);
+
+      resetConversationContext();
     } catch (error) {
-      console.error("Error processing order:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: "I apologize, but there was an issue processing your order. Please try again or contact our customer service.",
-          sender: "ai",
-          timestamp: new Date(),
-          isError: true,
-        },
-      ]);
+      handleOrderError(error);
     }
   };
 
-  const formatOrderConfirmation = (
-    order,
-    itemsList,
-    subtotal,
-    estimatedTime,
-    orderData
-  ) => {
-    const specialInstructionsSection = orderData.specialInstructions
+  const generateOrderConfirmation = (order, itemsList, orderData) => {
+    const { subtotal, total, estimatedTime } = orderData;
+    const specialInstructions = orderData.specialInstructions
       ? `\n\n**Special Instructions:**\n${orderData.specialInstructions}`
       : "";
 
-    return `✅ **Order Successfully Confirmed!**\n\n**Order #${
-      order.id
-    }**\n\n**Items:**\n${itemsList}\n\n**Subtotal:** $${subtotal.toFixed(2)}
-${
-  orderData.isDelivery ? `**Delivery Fee:** $5.99\n` : ""
-}**Total:** $${order.total.toFixed(2)}
-      
+    return `✅ **Order Successfully Confirmed!**
+
+**Order #${order.id}**
+
+**Items:**
+${itemsList}
+
+**Subtotal:** $${subtotal.toFixed(2)}
+${orderData.isDelivery ? `**Delivery Fee:** $${order.deliveryFee}\n` : ""}
+**Total:** $${total.toFixed(2)}
+
 **Estimated ${
       orderData.isDelivery ? "Delivery" : "Preparation"
-    } Time:** ${estimatedTime} minutes${specialInstructionsSection}
+    } Time:** ${estimatedTime} minutes${specialInstructions}
 
 ${
   orderData.isDelivery
-    ? `Your order will be delivered to your address. You'll receive a notification when our delivery partner is on the way.`
-    : `Your order will be ready for pickup at our restaurant. You'll receive a notification when it's ready.`
+    ? `Your order will be delivered to your address. You'll receive updates about your delivery status.`
+    : `Your order will be ready for pickup at our restaurant. We'll notify you when it's ready.`
 }
 
-Thank you for choosing ${domainData.name}!`;
+Thank you for choosing ${
+      order.restaurantName
+    }! Your order has been confirmed and is being prepared.`;
   };
 
   const extractTopic = (message) => {
@@ -934,6 +1053,126 @@ Thank you for choosing ${domainData.name}!`;
     );
   };
 
+  const startDemoMode = () => {
+    setIsDemoMode(true);
+    const demoQueries = getDemoQueries(context);
+    runDemoSequence(demoQueries, handleSendMessage);
+  };
+
+  const renderSettings = () => (
+    <ChatSettings
+      isOpen={showSettings}
+      onClose={() => setShowSettings(false)}
+      settings={settings}
+      updateSettings={updateSettings}
+    />
+  );
+
+  const additionalHeaderButtons = (
+    <>
+      <Tooltip label="Demo Mode" hasArrow>
+        <IconButton
+          size="sm"
+          icon={<MdOutlinePreview />}
+          onClick={startDemoMode}
+          variant="ghost"
+          color="white"
+          isDisabled={isDemoMode}
+        />
+      </Tooltip>
+      <Tooltip label="Settings" hasArrow>
+        <IconButton
+          size="sm"
+          icon={<MdSettings />}
+          onClick={() => setShowSettings(true)}
+          variant="ghost"
+          color="white"
+        />
+      </Tooltip>
+    </>
+  );
+
+  const renderMessage = (msg) => (
+    <MotionFlex
+      justify={msg.sender === "user" ? "flex-end" : "flex-start"}
+      custom={msg.sender}
+      variants={messageVariants}
+      initial="hidden"
+      animate="visible"
+      fontSize={settings.fontSize}
+    >
+      {msg.sender === "ai" && (
+        <Avatar
+          size="sm"
+          mr={2}
+          icon={<FaRobot />}
+          bg={msg.isError ? "red.500" : "brandPrimary.500"}
+        />
+      )}
+
+      <MotionBox
+        maxW={{ base: "85%", md: "70%" }}
+        bg={msg.sender === "user" ? userBgColor : aiBgColor}
+        p={3}
+        borderRadius="lg"
+        boxShadow="sm"
+        position="relative"
+        _hover={{
+          "& > .message-actions": {
+            opacity: 1,
+          },
+        }}
+      >
+        {renderMessageContent(msg.text)}
+
+        {settings.showTimestamps && (
+          <Text
+            fontSize="xs"
+            color={messageTimeColor}
+            mt={1}
+            textAlign={msg.sender === "user" ? "right" : "left"}
+          >
+            {formatTime(msg.timestamp)}
+          </Text>
+        )}
+
+        <Flex
+          className="message-actions"
+          position="absolute"
+          opacity="0"
+          transition="opacity 0.2s"
+          right={msg.sender === "user" ? "-15px" : "auto"}
+          left={msg.sender === "ai" ? "-15px" : "auto"}
+          top="50%"
+          transform="translateY(-50%)"
+        >
+          <Tooltip label="Copy message" hasArrow>
+            <IconButton
+              size="xs"
+              icon={<FaRegCopy />}
+              colorScheme={msg.sender === "user" ? "brandPrimary" : "gray"}
+              variant="ghost"
+              onClick={() => copyToClipboard(msg.text)}
+              aria-label="Copy to clipboard"
+            />
+          </Tooltip>
+        </Flex>
+      </MotionBox>
+
+      {msg.sender === "user" && (
+        <Avatar size="sm" ml={2} icon={<FaUser />} bg="brandSecondary.500" />
+      )}
+    </MotionFlex>
+  );
+
+  const smoothScrollToBottom = () => {
+    const options = {
+      behavior: "smooth",
+      block: "end",
+    };
+    messagesEndRef.current?.scrollIntoView(options);
+  };
+
   return (
     <Box
       w="100%"
@@ -944,6 +1183,36 @@ Thank you for choosing ${domainData.name}!`;
       boxShadow="xl"
     >
       <Flex flexDirection="column" h="100%">
+        {isDemoMode && (
+          <Alert
+            status="info"
+            variant="subtle"
+            bgGradient="linear(to-r, accent.400, brandPrimary.500)"
+            color="white"
+            py={3}
+            mb={0}
+          >
+            <Flex justify="center" align="center" w="100%" gap={2}>
+              <Icon as={MdOutlinePreview} boxSize="20px" />
+              <Text fontWeight="bold" fontSize="md">
+                Demo Mode Active
+              </Text>
+              <Button
+                size="sm"
+                variant="ghost"
+                bg="whiteAlpha.200"
+                color="white"
+                _hover={{ bg: "whiteAlpha.300" }}
+                _active={{ bg: "whiteAlpha.400" }}
+                leftIcon={<Icon as={BiReset} boxSize="16px" />}
+                onClick={() => setIsDemoMode(false)}
+              >
+                Exit Demo
+              </Button>
+            </Flex>
+          </Alert>
+        )}
+
         <Box
           p={4}
           bg={headerBgColor}
@@ -976,14 +1245,12 @@ Thank you for choosing ${domainData.name}!`;
               flexWrap="wrap"
               justify={{ base: "center", sm: "flex-end" }}
             >
-              {/* Status indicator with increased spinner size */}
               {apiStatus === "checking" ? (
                 <Spinner size="md" color="white" />
               ) : (
                 <AIStatusIndicator apiStatus={apiStatus} />
               )}
 
-              {/* Rest of the buttons */}
               {apiStatus === "offline" && (
                 <Tooltip label="Try reconnecting" hasArrow>
                   <IconButton
@@ -1034,6 +1301,8 @@ Thank you for choosing ${domainData.name}!`;
                   _hover={{ bg: "whiteAlpha.200", color: "white" }}
                 />
               </Tooltip>
+
+              {additionalHeaderButtons}
             </HStack>
           </Flex>
         </Box>
@@ -1072,84 +1341,11 @@ Thank you for choosing ${domainData.name}!`;
             },
           }}
         >
-          <VStack spacing={{ base: 2, md: 4 }} align="stretch">
-            {messages.map((msg, index) => (
-              <MotionFlex
-                key={index}
-                justify={msg.sender === "user" ? "flex-end" : "flex-start"}
-                custom={msg.sender}
-                variants={messageVariants}
-                initial="hidden"
-                animate="visible"
-              >
-                {msg.sender === "ai" && (
-                  <Avatar
-                    size="sm"
-                    mr={2}
-                    icon={<FaRobot />}
-                    bg={msg.isError ? "red.500" : "brandPrimary.500"}
-                  />
-                )}
-
-                <MotionBox
-                  maxW={{ base: "85%", md: "70%" }}
-                  bg={msg.sender === "user" ? userBgColor : aiBgColor}
-                  p={3}
-                  borderRadius="lg"
-                  boxShadow="sm"
-                  position="relative"
-                  _hover={{
-                    "& > .message-actions": {
-                      opacity: 1,
-                    },
-                  }}
-                >
-                  {renderMessageContent(msg.text)}
-
-                  <Text
-                    fontSize="xs"
-                    color={messageTimeColor}
-                    mt={1}
-                    textAlign={msg.sender === "user" ? "right" : "left"}
-                  >
-                    {formatTime(msg.timestamp)}
-                  </Text>
-
-                  <Flex
-                    className="message-actions"
-                    position="absolute"
-                    opacity="0"
-                    transition="opacity 0.2s"
-                    right={msg.sender === "user" ? "-15px" : "auto"}
-                    left={msg.sender === "ai" ? "-15px" : "auto"}
-                    top="50%"
-                    transform="translateY(-50%)"
-                  >
-                    <Tooltip label="Copy message" hasArrow>
-                      <IconButton
-                        size="xs"
-                        icon={<FaRegCopy />}
-                        colorScheme={
-                          msg.sender === "user" ? "brandPrimary" : "gray"
-                        }
-                        variant="ghost"
-                        onClick={() => copyToClipboard(msg.text)}
-                        aria-label="Copy to clipboard"
-                      />
-                    </Tooltip>
-                  </Flex>
-                </MotionBox>
-
-                {msg.sender === "user" && (
-                  <Avatar
-                    size="sm"
-                    ml={2}
-                    icon={<FaUser />}
-                    bg="brandSecondary.500"
-                  />
-                )}
-              </MotionFlex>
-            ))}
+          <VStack spacing={settings.messageSpacing} align="stretch">
+            {messages.map((msg, index) => renderMessage(msg))}
+            {isTyping && settings.showTypingIndicator && (
+              <MessageTypingIndicator />
+            )}
             <div ref={messagesEndRef} />
           </VStack>
         </Box>
@@ -1259,6 +1455,8 @@ Thank you for choosing ${domainData.name}!`;
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {renderSettings()}
     </Box>
   );
 }

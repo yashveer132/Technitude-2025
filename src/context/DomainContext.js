@@ -3,6 +3,8 @@ import { createDomainConfig } from "../utils/domainAdapter";
 import { restaurantData } from "../data/restaurantData";
 import { clinicData } from "../data/clinicData";
 import { hotelData } from "../data/hotelData";
+import { useServices } from "./ServiceContext";
+import { trackError } from "../utils/analytics";
 
 const DomainContext = createContext();
 
@@ -13,17 +15,20 @@ const availableDomains = {
 };
 
 export const DomainProvider = ({ children }) => {
+  const { domainLoader } = useServices();
   const [activeDomain, setActiveDomain] = useState("restaurant");
+  const [currentDomainConfig, setCurrentDomainConfig] = useState(
+    availableDomains.restaurant
+  );
 
-  const currentDomainConfig =
-    availableDomains[activeDomain] || availableDomains.restaurant;
-
-  const switchDomain = (domainKey) => {
-    if (availableDomains[domainKey]) {
-      setActiveDomain(domainKey);
-      return true;
+  const switchDomain = async (domainType) => {
+    try {
+      const { config } = await domainLoader.loadDomain(domainType);
+      setActiveDomain(domainType);
+      setCurrentDomainConfig(config);
+    } catch (error) {
+      trackError(error, "domain_switch");
     }
-    return false;
   };
 
   const registerDomain = (key, data) => {
