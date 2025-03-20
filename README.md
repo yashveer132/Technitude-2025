@@ -7,6 +7,11 @@ A versatile domain-adaptable GenAI assistant that provides natural conversationa
 [![Google Generative AI](https://img.shields.io/badge/Google%20Gemini-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
 [![Chakra UI](https://img.shields.io/badge/Chakra%20UI-319795?logo=chakra-ui&logoColor=white)](https://chakra-ui.com/)
 
+## Deployment
+
+Deployed the project on Netlify
+https://technitude-2025.netlify.app/
+
 ## 🌟 Key Features
 
 - **Multi-Domain Support**
