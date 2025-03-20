@@ -113,11 +113,11 @@ AI: "I can help you with that. Dr. Sarah Johnson, our cardiologist, has the foll
 
 ### Hotel Assistant
 ```
-User: "What rooms are available next weekend?"
-AI: "For next weekend, we have:
+User: "What are all the rooms available?"
+AI: "We have these options available:
     • Standard King Room ($199/night)
     • Deluxe King Room ($249/night)
-    Both include free WiFi, daily housekeeping, and city views."
+    ...."
 ```
 
 ## 🏗️ Architecture
