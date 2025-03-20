@@ -28,11 +28,12 @@ import {
   FaSnowflake,
   FaGlassMartini,
   FaUsers,
+  FaCheckCircle,
 } from "react-icons/fa";
 import ChatInterface from "../components/chat/ChatInterface";
 import { useDomain } from "../context/DomainContext";
 import { hotelData } from "../data/hotelData";
-import ReviewCard from "../components/reviews/ReviewCard";
+import { parseMarkdown } from "../utils/markdownParser";
 
 function HotelPage() {
   const [selectedTab, setSelectedTab] = useState(0);
@@ -56,30 +57,47 @@ function HotelPage() {
     return null;
   };
 
-  const reviews = [
-    {
-      user: "John Doe",
-      rating: 5,
-      date: "2024-01-15",
-      comment: "Excellent stay! The rooms were clean and comfortable.",
-      verified: true,
-    },
-    {
-      user: "Jane Smith",
-      rating: 4,
-      date: "2024-01-10",
-      comment: "Great service, but the WiFi was a bit slow.",
-      verified: true,
-    },
-  ];
+  const renderMessageContent = (text) => {
+    if (!text) return <Text>No message content</Text>;
+
+    const cleanedText = text.replace(/\n{3,}/g, "\n\n");
+
+    const textWithBoldPackages = cleanedText.replace(
+      /(Romance Package|Business Package|Family Fun Package|Wellness Retreat)/g,
+      "**$1**"
+    );
+
+    const textWithSpacing = textWithBoldPackages.replace(/\n\*/g, "\n\n*");
+
+    if (
+      textWithSpacing.includes("**") ||
+      textWithSpacing.includes("*") ||
+      textWithSpacing.includes("#") ||
+      textWithSpacing.includes("- ") ||
+      textWithSpacing.includes("`") ||
+      textWithSpacing.includes("```") ||
+      textWithSpacing.includes("|") ||
+      textWithSpacing.includes("\n\n") ||
+      textWithSpacing.includes("> ")
+    ) {
+      return parseMarkdown(textWithSpacing);
+    }
+
+    return (
+      <Text whiteSpace="pre-wrap" wordBreak="break-word">
+        {textWithSpacing}
+      </Text>
+    );
+  };
 
   return (
-    <Box px={{ base: 2, md: 0 }}>
+    <Box px={{ base: 0, md: 4 }} py={{ base: 2, md: 8 }}>
       <Heading
         as="h1"
-        mb={{ base: 4, md: 6 }}
+        mb={{ base: 3, md: 6 }}
         textAlign="center"
-        fontSize={{ base: "2xl", md: "3xl" }}
+        fontSize={{ base: "xl", md: "3xl" }}
+        px={2}
       >
         {hotelData.name}
       </Heading>
@@ -90,12 +108,12 @@ function HotelPage() {
         fontSize={{ base: "md", md: "lg" }}
         px={{ base: 2, md: 0 }}
       >
-        {hotelData.address} • {hotelData.phone}
+        {hotelData.address} {hotelData.phone}
       </Text>
 
       <Grid
         templateColumns={{ base: "1fr", lg: "1fr 1fr" }}
-        gap={{ base: 4, md: 6 }}
+        gap={{ base: 2, md: 6 }}
       >
         <GridItem>
           <Tabs variant="enclosed" onChange={(index) => setSelectedTab(index)}>
@@ -133,65 +151,102 @@ function HotelPage() {
             <TabPanels>
               <TabPanel p={{ base: 2, md: 4 }}>
                 <Box
-                  height={{ base: "calc(100vh - 400px)", md: "500px" }}
+                  height={{ base: "calc(100vh - 280px)", md: "500px" }}
                   overflowY="auto"
                 >
                   {hotelData.rooms?.map((room) => (
                     <Box
                       key={room.id}
-                      p={4}
+                      p={6}
                       mb={4}
                       borderWidth="1px"
                       borderRadius="lg"
                       boxShadow="sm"
                       transition="all 0.2s"
                       _hover={{
-                        boxShadow: "md",
+                        boxShadow: "lg",
                         transform: "translateY(-2px)",
                       }}
                     >
-                      <Flex justify="space-between" align="center">
-                        <Box>
-                          <Heading as="h3" size="md">
+                      <Flex justify="space-between" align="start">
+                        <Box flex="1">
+                          <Heading as="h3" size="md" mb={2}>
                             {room.type}
                           </Heading>
-                          <Text mt={1}>{room.description}</Text>
+                          <Text mt={1} color="gray.600" fontSize="md">
+                            {room.description}
+                          </Text>
                         </Box>
                         <Badge
-                          colorScheme={room.available ? "green" : "red"}
-                          fontSize="0.8em"
-                          py={1}
+                          colorScheme={room.availability ? "green" : "red"}
+                          fontSize="0.9em"
                           px={2}
+                          py={1}
+                          borderRadius="full"
+                          ml={4}
                         >
-                          {room.available ? "Available" : "Booked"}
+                          {room.availability ? "Available" : "Booked"}
                         </Badge>
                       </Flex>
 
-                      <HStack mt={3} flexWrap="wrap">
-                        {room.amenities.slice(0, 5).map((amenity, idx) => {
-                          const IconComponent = getAmenityIcon(amenity);
-                          return (
-                            <Tag key={idx} size="sm" colorScheme="gray" mb={2}>
-                              {IconComponent && (
-                                <Icon as={IconComponent} mr={1} />
-                              )}
-                              {amenity}
-                            </Tag>
-                          );
-                        })}
-                        {room.amenities.length > 5 && (
-                          <Tag size="sm" colorScheme="gray">
-                            +{room.amenities.length - 5} more
-                          </Tag>
-                        )}
-                      </HStack>
-
-                      <Flex justify="space-between" align="center" mt={2}>
-                        <HStack>
-                          <Icon as={FaUsers} />
-                          <Text fontWeight="medium">
-                            Capacity: {room.capacity}
+                      <Grid
+                        templateColumns={{ base: "1fr", md: "1fr 1fr" }}
+                        gap={4}
+                        mt={4}
+                      >
+                        <Box>
+                          <Text fontWeight="semibold" mb={2}>
+                            Amenities:
                           </Text>
+                          <HStack flexWrap="wrap" spacing={2}>
+                            {room.amenities.map((amenity, idx) => {
+                              const IconComponent = getAmenityIcon(amenity);
+                              return (
+                                <Tag
+                                  key={idx}
+                                  size="md"
+                                  colorScheme="gray"
+                                  mb={2}
+                                  py={1}
+                                >
+                                  {IconComponent && (
+                                    <Icon as={IconComponent} mr={1} />
+                                  )}
+                                  {amenity}
+                                </Tag>
+                              );
+                            })}
+                          </HStack>
+                        </Box>
+                        <Box>
+                          <Text fontWeight="semibold" mb={2}>
+                            Features:
+                          </Text>
+                          <VStack align="start" spacing={1}>
+                            {room.features.map((feature, idx) => (
+                              <HStack key={idx}>
+                                <Icon as={FaCheckCircle} color="green.500" />
+                                <Text>{feature}</Text>
+                              </HStack>
+                            ))}
+                          </VStack>
+                        </Box>
+                      </Grid>
+
+                      <Flex
+                        justify="space-between"
+                        align="center"
+                        mt={4}
+                        pt={4}
+                        borderTopWidth="1px"
+                      >
+                        <HStack spacing={4}>
+                          <HStack>
+                            <Icon as={FaUsers} color="gray.500" />
+                            <Text fontWeight="medium">
+                              Max Occupancy: {room.maxOccupancy}
+                            </Text>
+                          </HStack>
                         </HStack>
                         <Text fontWeight="bold" color={accentColor}>
                           ${room.rate}/night
@@ -313,7 +368,7 @@ function HotelPage() {
                     </Text>
                   </Box>
 
-                  <Box p={4} borderWidth="1px" borderRadius="lg">
+                  <Box p={4} borderWidth="1px" borderRadius="lg" mb={4}>
                     <Heading as="h3" size="md" mb={2}>
                       Payment Options
                     </Heading>
@@ -325,17 +380,6 @@ function HotelPage() {
                       )}
                     </Box>
                   </Box>
-                </Box>
-              </TabPanel>
-
-              <TabPanel>
-                <Box>
-                  <Heading size="md" mb={4}>
-                    Guest Reviews
-                  </Heading>
-                  {reviews?.map((review, index) => (
-                    <ReviewCard key={index} review={review} />
-                  ))}
                 </Box>
               </TabPanel>
             </TabPanels>

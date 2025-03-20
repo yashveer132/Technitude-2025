@@ -10,7 +10,6 @@ import {
 } from "firebase/firestore";
 import { validateDateTime, formatDateTime } from "../utils/dateTimeUtils";
 import { validateBookingData } from "../utils/validation";
-import { saveOfflineAction } from "../services/offlineService";
 import { isValid } from "date-fns";
 import { format } from "date-fns";
 
@@ -74,11 +73,6 @@ export const createBooking = async (bookingData) => {
     };
   } catch (error) {
     if (!navigator.onLine) {
-      await saveOfflineAction({
-        type: "booking",
-        data: bookingData,
-        action: "create",
-      });
       return {
         id: `offline_${Date.now()}`,
         ...bookingData,

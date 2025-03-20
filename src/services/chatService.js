@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import apiConfig from "../config/apiConfig";
+import AI_CONFIG from "../config/aiConfig";
 import { extractDomainContext } from "../utils/domainAdapter";
 import {
   ERROR_TYPES,
@@ -21,7 +21,7 @@ import { generateAIResponse, enhanceResponseWithDomainData } from "./aiService";
 const responseCache = new Map();
 const CACHE_EXPIRY = 3600000;
 
-const genAI = new GoogleGenerativeAI(apiConfig.googleAIApiKey);
+const genAI = new GoogleGenerativeAI(AI_CONFIG.apiKey);
 
 let activeModel = null;
 let apiState = "initializing";
@@ -29,18 +29,18 @@ let apiState = "initializing";
 const initializeModel = async () => {
   try {
     apiState = "initializing";
-    console.log("Initializing AI service with model:", apiConfig.aiModel);
 
-    if (!apiConfig.googleAIApiKey) {
+    if (!AI_CONFIG.isConfigured()) {
       throw createChatError(
         "API key not configured",
         ERROR_TYPES.MODEL_INITIALIZATION
       );
     }
 
+    const primaryConfig = AI_CONFIG.getModelConfig("primary");
     activeModel = genAI.getGenerativeModel({
-      model: apiConfig.aiModel,
-      generationConfig: apiConfig.generationConfig,
+      model: primaryConfig.name,
+      generationConfig: primaryConfig.config,
     });
 
     const result = await activeModel
@@ -61,22 +61,20 @@ const initializeModel = async () => {
     }
 
     apiState = "online";
-    console.log("AI service initialized successfully");
     return true;
   } catch (primaryError) {
     console.warn("Primary model initialization failed:", primaryError);
 
     try {
-      console.log("Trying fallback model:", apiConfig.fallbackModel);
+      const fallbackConfig = AI_CONFIG.getModelConfig("fallback");
       activeModel = genAI.getGenerativeModel({
-        model: apiConfig.fallbackModel,
-        generationConfig: apiConfig.generationConfig,
+        model: fallbackConfig.name,
+        generationConfig: fallbackConfig.config,
       });
 
       const result = await activeModel.generateContent("Test connection");
       if (result.response) {
         apiState = "limited";
-        console.log("Fallback AI service initialized");
         return true;
       }
 
@@ -102,7 +100,6 @@ const getCachedResponse = (prompt, domain) => {
   const cached = responseCache.get(cacheKey);
 
   if (cached && Date.now() - cached.timestamp < CACHE_EXPIRY) {
-    console.log("Using cached response");
     return cached.response;
   }
 
@@ -454,13 +451,8 @@ const handlePendingActionModification = (
   return null;
 };
 
-const handleResponseLogging = async (
-  prompt,
-  responseText,
-  domainConfig,
-  options
-) => {
-  const { userId, skipCache } = options;
+const handleResponseLogging = async (prompt, responseText, domainConfig, options) => {
+  const { skipCache } = options;
 
   if (!skipCache) {
     try {
@@ -470,24 +462,10 @@ const handleResponseLogging = async (
     }
   }
 
-  if (userId) {
-    await saveUserChatHistory(userId, {
-      prompt,
-      response: responseText,
-      context: domainConfig.context,
-      timestamp: new Date().toISOString(),
-      metadata: {
-        apiState,
-        modelUsed: apiConfig.aiModel,
-        wasFromCache: false,
-      },
-    });
-
-    logChatInteraction("message_sent", {
-      userId,
-      domain: domainConfig.context,
-    });
-  }
+  logChatInteraction("message_sent", {
+    domain: domainConfig.context,
+    success: true
+  });
 };
 
 const handleDomainActions = async (

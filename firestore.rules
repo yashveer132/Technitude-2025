@@ -20,13 +20,6 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid;
     }
 
-    // Chat history rules
-    match /users/{userId}/chats/{chatId} {
-      allow read: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow delete: if isOwner(userId);
-    }
-
     // Booking rules
     match /bookings/{bookingId} {
       allow read: if isAuthenticated() && (

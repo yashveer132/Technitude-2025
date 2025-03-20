@@ -1,5 +1,5 @@
 export const restaurantData = {
-  name: "GenAI Fusion Restaurant",
+  name: "Fusion Restaurant",
   cuisineType: "Fusion",
   openHours: "10:00 AM - 10:00 PM",
   menu: [

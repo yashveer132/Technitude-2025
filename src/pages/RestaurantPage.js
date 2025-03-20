@@ -38,27 +38,29 @@ function RestaurantPage() {
   }, [switchDomain]);
 
   return (
-    <Box px={{ base: 2, md: 0 }}>
+    <Box px={{ base: 0, md: 4 }} py={{ base: 2, md: 8 }}>
       <Heading
         as="h1"
-        mb={{ base: 4, md: 6 }}
+        mb={{ base: 3, md: 6 }}
         textAlign="center"
-        fontSize={{ base: "2xl", md: "3xl" }}
+        fontSize={{ base: "xl", md: "3xl" }}
+        px={2}
       >
         {restaurantData.name}
       </Heading>
 
       <Text
         textAlign="center"
-        mb={{ base: 4, md: 6 }}
-        fontSize={{ base: "md", md: "lg" }}
+        mb={{ base: 3, md: 6 }}
+        fontSize={{ base: "sm", md: "lg" }}
+        px={2}
       >
         Hours: {restaurantData.openHours} • {restaurantData.cuisineType} Cuisine
       </Text>
 
       <Grid
         templateColumns={{ base: "1fr", lg: "1fr 1fr" }}
-        gap={{ base: 4, md: 6 }}
+        gap={{ base: 2, md: 6 }}
       >
         <GridItem>
           <Tabs variant="enclosed" onChange={(index) => setSelectedTab(index)}>

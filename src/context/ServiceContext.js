@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { AccessibilityService } from "../services/accessibilityService";
 import { OptimizationService } from "../services/optimizationService";
 import { DomainLoader } from "../services/domainLoader";
-import { trackError, trackPerformance } from "../utils/analytics";
 
 const ServiceContext = createContext();
 
@@ -24,14 +23,8 @@ export const ServiceProvider = ({ children }) => {
           optimization,
           domainLoader: DomainLoader,
         });
-
-        trackPerformance({
-          name: "services_initialization",
-          duration: performance.now(),
-          domain: "system",
-        });
       } catch (error) {
-        trackError(error, "service_initialization");
+        console.error("Service initialization error:", error);
       }
     };
 

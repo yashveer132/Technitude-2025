@@ -5,7 +5,6 @@ import HomePage from "./pages/HomePage";
 import RestaurantPage from "./pages/RestaurantPage";
 import ClinicPage from "./pages/ClinicPage";
 import HotelPage from "./pages/HotelPage";
-import DashboardPage from "./pages/DashboardPage";
 import Header from "./components/common/Header";
 import Footer from "./components/common/Footer";
 import theme from "./theme";
@@ -14,7 +13,6 @@ import { DomainProvider } from "./context/DomainContext";
 import { getApiStatus } from "./services/chatService";
 import { AuthProvider } from "./context/AuthContext";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { syncOfflineActions } from "./services/offlineService";
 import { ServiceProvider } from "./context/ServiceContext";
 import { SettingsProvider } from "./context/SettingsContext";
 
@@ -37,7 +35,6 @@ function App() {
 
       try {
         await auth.app.name;
-        console.log("Firebase Auth initialized successfully!");
       } catch (error) {
         console.error("Firebase Auth error:", error);
         toast({
@@ -60,8 +57,6 @@ function App() {
           isClosable: true,
         });
       } else {
-        console.log("Google AI API key is configured");
-
         const apiStatus = getApiStatus();
         if (apiStatus === "offline") {
           toast({
@@ -78,11 +73,10 @@ function App() {
     const handleOnline = async () => {
       toast({
         title: "Back Online",
-        description: "Syncing offline actions...",
+        description: "App is now connected",
         status: "info",
         duration: 3000,
       });
-      await syncOfflineActions();
     };
 
     const handleOffline = () => {
@@ -130,10 +124,6 @@ function App() {
                           />
                           <Route path="/clinic" element={<ClinicPage />} />
                           <Route path="/hotel" element={<HotelPage />} />
-                          <Route
-                            path="/dashboard"
-                            element={<DashboardPage />}
-                          />
                         </Routes>
                       </Container>
                       <Footer />

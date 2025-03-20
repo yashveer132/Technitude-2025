@@ -5,14 +5,18 @@ import { getAnalytics, logEvent } from "firebase/analytics";
 import { getPerformance, trace } from "firebase/performance";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBT9jRM-75LyBKwJZKN2hqgBujigsgaW_0",
-  authDomain: "technitude-2025.firebaseapp.com",
-  projectId: "technitude-2025",
-  storageBucket: "technitude-2025.firebasestorage.app",
-  messagingSenderId: "937254841609",
-  appId: "1:937254841609:web:aed1e63d297bd7b40837d8",
-  measurementId: "G-EYQBTW9PH4",
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
 };
+
+if (!process.env.REACT_APP_FIREBASE_API_KEY) {
+  throw new Error("Firebase API key is missing in environment variables");
+}
 
 const app = initializeApp(firebaseConfig);
 

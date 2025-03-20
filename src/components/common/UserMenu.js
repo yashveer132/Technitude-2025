@@ -10,20 +10,15 @@ import {
   Text,
   VStack,
   HStack,
-  Divider,
   AvatarBadge,
   Box,
   Icon,
   useColorModeValue,
+  useBreakpointValue,
+  IconButton,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
-import {
-  FaUser,
-  FaSignOutAlt,
-  FaCog,
-  FaHistory,
-  FaRegBell,
-} from "react-icons/fa";
+import { FaSignOutAlt, FaUser } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
 import AuthModal from "../auth/AuthModal";
 
@@ -32,11 +27,11 @@ const MotionBox = motion(Box);
 function UserMenu() {
   const { user, logout } = useAuth();
   const { isOpen, onOpen, onClose } = useDisclosure();
-
   const menuBg = useColorModeValue("white", "gray.800");
   const menuHoverBg = useColorModeValue("gray.100", "gray.700");
   const borderColor = useColorModeValue("gray.200", "gray.600");
   const textColorSecondary = useColorModeValue("gray.600", "gray.400");
+  const isMobile = useBreakpointValue({ base: true, md: false });
 
   const menuListProps = {
     mt: 2,
@@ -54,10 +49,6 @@ function UserMenu() {
     p: 3,
     _hover: { bg: menuHoverBg },
     transition: "all 0.2s",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
   };
 
   return (
@@ -73,7 +64,7 @@ function UserMenu() {
             _active={{ bg: "whiteAlpha.300" }}
           >
             <Avatar
-              size="sm"
+              size={isMobile ? "xs" : "sm"}
               name={user.displayName || user.email}
               src={user.photoURL}
             >
@@ -90,14 +81,14 @@ function UserMenu() {
                 <Box p={2}>
                   <VStack align="center" spacing={2} width="100%">
                     <Avatar
-                      size="lg"
+                      size={isMobile ? "md" : "lg"}
                       name={user.displayName || user.email}
                       src={user.photoURL}
                     >
                       <AvatarBadge boxSize="1.25em" bg="green.500" />
                     </Avatar>
                     <VStack spacing={1} textAlign="center" width="100%">
-                      <Text fontWeight="bold" fontSize="lg">
+                      <Text fontWeight="bold" fontSize={isMobile ? "md" : "lg"}>
                         {user.displayName || "User"}
                       </Text>
                       <Text fontSize="sm" color={textColorSecondary}>
@@ -107,31 +98,13 @@ function UserMenu() {
                   </VStack>
                 </Box>
 
-                <Divider />
-
-                <VStack align="stretch" spacing={1} width="100%">
-                  <MenuItem {...menuItemProps} justifyContent="center">
-                    <Icon as={FaUser} mr={2} />
-                    <Text>View Profile</Text>
-                  </MenuItem>
-                  <MenuItem {...menuItemProps} justifyContent="center">
-                    <Icon as={FaHistory} mr={2} />
-                    <Text>Chat History</Text>
-                  </MenuItem>
-                  <MenuItem {...menuItemProps} justifyContent="center">
-                    <Icon as={FaRegBell} mr={2} />
-                    <Text>Notifications</Text>
-                  </MenuItem>
-                </VStack>
-
-                <Divider />
-
                 <MenuItem
                   {...menuItemProps}
                   onClick={logout}
                   color="red.400"
                   _hover={{ bg: "red.50", color: "red.500" }}
                   justifyContent="center"
+                  display="flex"
                 >
                   <Icon as={FaSignOutAlt} mr={2} />
                   <Text>Sign Out</Text>
@@ -142,26 +115,39 @@ function UserMenu() {
         </Menu>
       ) : (
         <HStack spacing={2}>
-          <Button
-            variant="ghost"
-            colorScheme="brandPrimary"
-            onClick={onOpen}
-            fontSize="sm"
-            fontWeight="medium"
-            _hover={{ bg: "whiteAlpha.200" }}
-          >
-            Sign In
-          </Button>
-          <Button
-            colorScheme="brandPrimary"
-            onClick={onOpen}
-            fontSize="sm"
-            fontWeight="medium"
-            px={6}
-            _hover={{ transform: "translateY(-1px)", boxShadow: "md" }}
-          >
-            Get Started
-          </Button>
+          {isMobile ? (
+            <IconButton
+              icon={<FaUser />}
+              variant="ghost"
+              colorScheme="brandPrimary"
+              onClick={onOpen}
+              aria-label="Sign in"
+              _hover={{ bg: "whiteAlpha.200" }}
+            />
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                colorScheme="brandPrimary"
+                onClick={onOpen}
+                fontSize="sm"
+                fontWeight="medium"
+                _hover={{ bg: "whiteAlpha.200" }}
+              >
+                Sign In
+              </Button>
+              <Button
+                colorScheme="brandPrimary"
+                onClick={onOpen}
+                fontSize="sm"
+                fontWeight="medium"
+                px={6}
+                _hover={{ transform: "translateY(-1px)", boxShadow: "md" }}
+              >
+                Get Started
+              </Button>
+            </>
+          )}
         </HStack>
       )}
       <AuthModal isOpen={isOpen} onClose={onClose} />

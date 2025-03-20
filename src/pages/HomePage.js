@@ -39,7 +39,6 @@ import PageTransition from "../components/common/PageTransition";
 import { keyframes } from "@emotion/react";
 import { useEffect } from "react";
 import { useServices } from "../context/ServiceContext";
-import { trackError } from "../utils/analytics";
 
 const MotionBox = motion(Box);
 const MotionHeading = motion(Heading);
@@ -90,7 +89,7 @@ function HomePage() {
           import(`../data/${key}.js`)
         );
       } catch (error) {
-        trackError(error, "preload_domains");
+        console.error("Failed to preload domains:", error);
       }
     };
 
@@ -168,9 +167,9 @@ function HomePage() {
                 variants={fadeIn}
                 color={heroTextColor}
               >
-                Advanced AI Assistant for{" "}
+                Intelligent Business Assistant for{" "}
                 <Text as="span" color="accent.300">
-                  Multiple Domains
+                  Modern Enterprises
                 </Text>
               </MotionHeading>
 
@@ -243,15 +242,15 @@ function HomePage() {
               </MotionBox>
 
               <MotionBox mt={8} variants={fadeIn}>
-                <HStack spacing={8}>
+                <HStack spacing={8} justify="center">
                   <Badge colorScheme="accent" px={3} py={1} borderRadius="full">
-                    GenAI Powered
+                    Smart Solutions
                   </Badge>
                   <Badge colorScheme="green" px={3} py={1} borderRadius="full">
-                    Multiple Domains
+                    Multi-Domain
                   </Badge>
                   <Badge colorScheme="purple" px={3} py={1} borderRadius="full">
-                    Natural Language
+                    Interactive
                   </Badge>
                 </HStack>
               </MotionBox>
@@ -522,13 +521,13 @@ function HomePage() {
           </Flex>
 
           <Heading size="lg" mb={4}>
-            Powered by Advanced GenAI Technology
+            Powered by Advanced Technology
           </Heading>
 
           <Text fontSize="lg" maxW="2xl" mx="auto" mb={8}>
-            Our system combines the power of large language models with
-            domain-specific knowledge to provide accurate, contextual responses
-            across different business domains.
+            Our system combines enterprise-grade technology with domain-specific
+            knowledge to provide accurate, contextual solutions across different
+            business verticals.
           </Text>
 
           <SimpleGrid columns={{ base: 1, md: 3 }} spacing={8} mt={10}>

@@ -1,5 +1,5 @@
 export const clinicData = {
-  name: "GenAI Wellness Clinic",
+  name: "Wellness Clinic",
   address: "123 Health Avenue, Medical District, GA 30033",
   phone: "(555) 123-4567",
   email: "appointments@genaiclinic.com",

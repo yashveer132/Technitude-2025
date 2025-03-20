@@ -1,5 +1,6 @@
 export const hotelData = {
-  name: "GenAI Luxury Hotel",
+  name: "Luxury Hotel",
+  address: "123 Hotel Avenue, Cyber District, GA 30033",
   tagline: "Experience unparalleled luxury in the heart of the city",
   description:
     "Our 5-star boutique hotel combines modern elegance with personalized service.",
@@ -34,7 +35,7 @@ export const hotelData = {
         "Daily Housekeeping",
         "Lounge Access",
       ],
-      availability: true,
+      availability: false,
     },
     {
       id: "exec-suite",
@@ -56,6 +57,56 @@ export const hotelData = {
         "Lounge Access",
       ],
       availability: true,
+    },
+    {
+      id: "family-suite",
+      type: "Family Suite",
+      description:
+        "Spacious 750 sq ft suite perfect for families with separate living area",
+      rate: 399,
+      maxOccupancy: 4,
+      amenities: [
+        "2 Queen beds",
+        "65-inch HDTV",
+        "Kitchenette",
+        "Dining area",
+        "2 Bathrooms",
+        "Kids play corner",
+      ],
+      features: [
+        "Free WiFi",
+        "Garden View",
+        "Kids Welcome Pack",
+        "Family Movie Library",
+        "Daily Housekeeping",
+      ],
+      availability: true,
+    },
+    {
+      id: "penth-suite",
+      type: "Penthouse Suite",
+      description: "Luxurious 1200 sq ft top floor suite with panoramic views",
+      rate: 899,
+      maxOccupancy: 4,
+      amenities: [
+        "Master bedroom with King bed",
+        "Second bedroom with Queen bed",
+        "75-inch HDTV",
+        "Full kitchen",
+        "Private terrace",
+        "Jacuzzi tub",
+        "Walk-in closet",
+      ],
+      features: [
+        "Free WiFi",
+        "Panoramic Views",
+        "Butler Service",
+        "Private Check-in",
+        "Complimentary Airport Transfer",
+        "Daily Housekeeping",
+        "VIP Lounge Access",
+      ],
+      availability: false,
     },
   ],
 
@@ -117,6 +168,20 @@ export const hotelData = {
       "Cash",
       "Digital Wallets",
     ],
+    earlyCheckIn: {
+      availability: "Subject to availability",
+      cost: "$50 (before 12 PM)",
+      eliteMembers: "Complimentary for Gold & Platinum members",
+    },
+    lateCheckout: {
+      availability: "Subject to availability",
+      cost: "$40 (until 4 PM)",
+      eliteMembers: "Complimentary for Gold & Platinum members",
+    },
+    extraBed: {
+      cost: "$40 per night",
+      availability: "Not available in Standard rooms",
+    },
   },
 
   specialOffers: [
@@ -187,6 +252,20 @@ export const hotelData = {
       hours: "9:00 AM - 9:00 PM",
       cost: "From $99",
     },
+    {
+      id: "service-4",
+      name: "Private Airport Transfer",
+      description: "Luxury vehicle airport pickup/drop-off service",
+      hours: "24 hours (booking required)",
+      cost: "From $75 one-way",
+    },
+    {
+      id: "service-5",
+      name: "Childcare Services",
+      description: "Professional babysitting and kids activities",
+      hours: "9:00 AM - 9:00 PM",
+      cost: "$25/hour",
+    },
   ],
 
   packages: [
@@ -213,6 +292,36 @@ export const hotelData = {
       ],
       price: 249,
       discount: 0.1,
+    },
+    {
+      id: "pkg-3",
+      name: "Family Fun Package",
+      description: "Perfect for family vacations",
+      includes: [
+        "Family suite accommodation",
+        "Daily breakfast for 4",
+        "Kids eat free",
+        "Theme park tickets",
+        "Welcome gifts for children",
+        "Late checkout until 2 PM",
+      ],
+      price: 499,
+      discount: 0.2,
+    },
+    {
+      id: "pkg-4",
+      name: "Wellness Retreat",
+      description: "Rejuvenate your body and mind",
+      includes: [
+        "Deluxe room accommodation",
+        "Daily yoga sessions",
+        "Spa treatment",
+        "Healthy meal plan",
+        "Fitness center access",
+        "Meditation classes",
+      ],
+      price: 399,
+      discount: 0.15,
     },
   ],
 };

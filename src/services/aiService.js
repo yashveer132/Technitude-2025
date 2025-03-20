@@ -1,23 +1,29 @@
-import apiConfig from "../config/apiConfig";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import AI_CONFIG from "../config/aiConfig";
 
 let isApiWorking = false;
 let model = null;
-const genAI = new GoogleGenerativeAI(apiConfig.googleAIApiKey);
+const genAI = new GoogleGenerativeAI(AI_CONFIG.apiKey);
 
 const findWorkingModel = async () => {
   try {
-    model = genAI.getGenerativeModel({ model: apiConfig.aiModel });
+    const primaryConfig = AI_CONFIG.getModelConfig("primary");
+    model = genAI.getGenerativeModel({
+      model: primaryConfig.name,
+      generationConfig: primaryConfig.config,
+    });
     await model.generateContent("Test");
-    console.log("Primary AI model initialized successfully");
     isApiWorking = true;
     return true;
   } catch (error) {
     console.warn("Primary model failed, trying fallback:", error);
     try {
-      model = genAI.getGenerativeModel({ model: apiConfig.fallbackModel });
+      const fallbackConfig = AI_CONFIG.getModelConfig("fallback");
+      model = genAI.getGenerativeModel({
+        model: fallbackConfig.name,
+        generationConfig: fallbackConfig.config,
+      });
       await model.generateContent("Test");
-      console.log("Fallback AI model initialized successfully");
       isApiWorking = true;
       return true;
     } catch (fallbackError) {
@@ -381,7 +387,6 @@ export const enhanceResponseWithDomainData = (
         seasonalHighlight =
           "Our fall menu showcases butternut squash risotto and apple cider glazed dishes.";
       } else {
-        // Winter
         seasonalHighlight =
           "Our winter specials include hearty stews, truffle-infused dishes, and holiday-inspired desserts.";
       }

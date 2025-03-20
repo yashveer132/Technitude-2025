@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Box,
   Flex,
@@ -12,29 +12,13 @@ import {
   InputRightElement,
   IconButton,
   Tooltip,
-  Badge,
   useToast,
   Spinner,
   HStack,
   Alert,
   AlertIcon,
   Link,
-  Divider,
-  useDisclosure,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalCloseButton,
-  ModalFooter,
-  List,
-  ListItem,
   Icon,
-  FormControl,
-  FormLabel,
-  Switch,
-  Select,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import {
@@ -45,8 +29,6 @@ import {
   FaRobot,
   FaUser,
   FaSync,
-  FaDownload,
-  FaHistory,
 } from "react-icons/fa";
 import { BiReset } from "react-icons/bi";
 import { MdOutlinePreview, MdSettings } from "react-icons/md";
@@ -69,7 +51,6 @@ import {
   reconnectApi,
 } from "../../services/chatService";
 import { useServices } from "../../context/ServiceContext";
-import { trackUserInteraction, trackError } from "../../utils/analytics";
 import { getDemoQueries, runDemoSequence } from "../../utils/demoQueries";
 import { useSettings } from "../../context/SettingsContext";
 import { MessageTypingIndicator } from "./MessageTypingIndicator";
@@ -86,12 +67,10 @@ function ChatInterface({ context, domainData }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [apiStatus, setApiStatus] = useState("checking");
-  const [chatHistory, setChatHistory] = useState([]);
   const [sessionId] = useState(Math.random().toString(36).substring(7));
   const { user } = useAuth();
   const messagesEndRef = useRef(null);
   const toast = useToast();
-  const { isOpen, onOpen, onClose } = useDisclosure();
 
   const [conversationContext, setConversationContext] = useState({
     pendingAction: null,
@@ -167,6 +146,10 @@ Please provide these details so I can confirm your order.`;
   const messageTimeColor = useColorModeValue("gray.500", "gray.400");
   const inputBgColor = useColorModeValue("white", "gray.700");
   const footerBgColor = useColorModeValue("white", "gray.800");
+  const demoBgColor = useColorModeValue(
+    "linear(to-r, blue.400, brandPrimary.400)",
+    "linear(to-r, blue.600, brandPrimary.600)"
+  );
 
   const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -235,17 +218,6 @@ Please provide these details so I can confirm your order.`;
 
     checkApiStatus();
   }, []);
-
-  useEffect(() => {
-    try {
-      const storedHistory = localStorage.getItem(`chatHistory_${context}`);
-      if (storedHistory) {
-        setChatHistory(JSON.parse(storedHistory));
-      }
-    } catch (error) {
-      console.error("Failed to load chat history:", error);
-    }
-  }, [context]);
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -324,6 +296,7 @@ Please provide these details so I can confirm your order.`;
     setMessages((prev) => [
       ...prev,
       {
+        id: Date.now() + Math.random(),
         text: message,
         sender: "user",
         timestamp: new Date(),
@@ -351,6 +324,7 @@ Please provide these details so I can confirm your order.`;
           setMessages((prev) => [
             ...prev,
             {
+              id: Date.now() + Math.random(),
               text: response.message,
               sender: "ai",
               timestamp: new Date(),
@@ -365,6 +339,7 @@ Please provide these details so I can confirm your order.`;
         setMessages((prev) => [
           ...prev,
           {
+            id: Date.now() + Math.random(),
             text: response,
             sender: "ai",
             timestamp: new Date(),
@@ -393,7 +368,6 @@ Please provide these details so I can confirm your order.`;
       setInput(transcript);
       handleSendMessage(transcript);
     } catch (error) {
-      trackError(error, "voice_input");
       toast({
         title: "Voice input failed",
         description: "Please try again or use text input",
@@ -441,6 +415,7 @@ Please provide these details so I can confirm your order.`;
       setMessages((prev) => [
         ...prev,
         {
+          id: Date.now() + Math.random(),
           text: `✅ **Hotel Reservation Successfully Confirmed!**\n\n**Booking Reference:** ${
             booking.id
           }\n\n**Check-in Date:** ${
@@ -476,56 +451,67 @@ Thank you for choosing ${domainData.name}! We look forward to welcoming you.`,
   const handleBookingConfirmation = async (bookingData) => {
     try {
       if (!bookingData.patientName) {
-        setMessages(prev => [...prev, {
-          text: "To complete your booking, please provide your name for the appointment.",
-          sender: "ai",
-          timestamp: new Date()
-        }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + Math.random(),
+            text: "To complete your booking, please provide your name for the appointment.",
+            sender: "ai",
+            timestamp: new Date(),
+          },
+        ]);
         return;
       }
-  
+
       const booking = await createBooking({
         ...bookingData,
         type: "clinic",
         userId: user?.uid,
         status: "confirmed",
-        createdAt: new Date()
+        createdAt: new Date(),
       });
-  
-      const doctor = domainData.doctors.find(d => 
-        d.name === booking.doctor.replace("Dr. ", "") || 
-        `Dr. ${d.name}` === booking.doctor
+
+      const doctor = domainData.doctors.find(
+        (d) =>
+          d.name === booking.doctor.replace("Dr. ", "") ||
+          `Dr. ${d.name}` === booking.doctor
       );
-  
+
       const confirmationMessage = generateBookingConfirmation(booking, doctor);
-      
-      setMessages(prev => [...prev, {
-        text: confirmationMessage,
-        sender: "ai",
-        timestamp: new Date(),
-        isConfirmation: true
-      }]);
-  
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + Math.random(),
+          text: confirmationMessage,
+          sender: "ai",
+          timestamp: new Date(),
+          isConfirmation: true,
+        },
+      ]);
+
       setConversationContext({
         pendingAction: null,
         lastTopic: "booking_complete",
-        pendingConfirmation: false
+        pendingConfirmation: false,
       });
-  
-      // Send follow-up message after delay
+
       setTimeout(() => {
-        setMessages(prev => [...prev, {
-          text: "Is there anything else you would like to know about our clinic services?",
-          sender: "ai",
-          timestamp: new Date()
-        }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + Math.random(),
+            text: "Is there anything else you would like to know about our clinic services?",
+            sender: "ai",
+            timestamp: new Date(),
+          },
+        ]);
       }, 2000);
-  
     } catch (error) {
       handleBookingError(error);
     }
   };
-  
+
   const generateBookingConfirmation = (booking, doctor) => {
     return `✅ **Appointment Successfully Booked!**
   
@@ -544,17 +530,20 @@ Thank you for choosing ${domainData.name}! We look forward to welcoming you.`,
   
   Thank you for choosing ${domainData.name}!`;
   };
-  
+
   const handleBookingError = (error) => {
     console.error("Booking error:", error);
-    setMessages(prev => [...prev, {
-      text: `I apologize, but there was an error processing your appointment: ${error.message}. Please try again or contact our reception at ${domainData.phone}.`,
-      sender: "ai",
-      timestamp: new Date(),
-      isError: true
-    }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        text: `I apologize, but there was an error processing your appointment: ${error.message}. Please try again or contact our reception at ${domainData.phone}.`,
+        sender: "ai",
+        timestamp: new Date(),
+        isError: true,
+      },
+    ]);
   };
-  
 
   const handleOrderConfirmation = async (orderData) => {
     try {
@@ -579,6 +568,7 @@ Thank you for choosing ${domainData.name}! We look forward to welcoming you.`,
       setMessages((prev) => [
         ...prev,
         {
+          id: Date.now() + Math.random(),
           text: confirmationMessage,
           sender: "ai",
           timestamp: new Date(),
@@ -590,6 +580,7 @@ Thank you for choosing ${domainData.name}! We look forward to welcoming you.`,
         setMessages((prev) => [
           ...prev,
           {
+            id: Date.now() + Math.random(),
             text: "Is there anything else I can help you with?",
             sender: "ai",
             timestamp: new Date(),
@@ -794,86 +785,6 @@ Thank you for choosing ${
         description: "Could not connect to the AI service",
         status: "error",
         duration: 3000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const addToHistory = (chatItem) => {
-    setChatHistory((prev) => {
-      const updatedHistory = [...prev, chatItem];
-      const trimmedHistory = updatedHistory.slice(-20);
-
-      try {
-        localStorage.setItem(
-          `chatHistory_${context}`,
-          JSON.stringify(trimmedHistory)
-        );
-      } catch (error) {
-        console.error("Failed to save chat history:", error);
-      }
-
-      return trimmedHistory;
-    });
-  };
-
-  const loadConversation = (item) => {
-    setMessages([
-      {
-        text: `Welcome to the ${
-          context === "restaurant" ? "Restaurant" : "Clinic"
-        } Assistant! How can I help you today?`,
-        sender: "ai",
-        timestamp: new Date(Date.now() - 1000),
-      },
-      {
-        text: item.userMessage,
-        sender: "user",
-        timestamp: new Date(item.timestamp),
-      },
-      {
-        text: item.aiResponse,
-        sender: "ai",
-        timestamp: new Date(item.timestamp),
-      },
-    ]);
-    onClose();
-  };
-
-  const exportChat = () => {
-    try {
-      const chatText = messages
-        .map(
-          (msg) =>
-            `${msg.sender === "user" ? "You" : "AI"} (${formatTime(
-              msg.timestamp
-            )}): ${msg.text}`
-        )
-        .join("\n\n");
-
-      const blob = new Blob([chatText], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const date = new Date().toISOString().split("T")[0];
-      a.href = url;
-      a.download = `${context}_chat_${date}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast({
-        title: "Chat exported",
-        status: "success",
-        duration: 2000,
-        isClosable: true,
-      });
-    } catch (error) {
-      console.error("Export failed:", error);
-      toast({
-        title: "Export failed",
-        status: "error",
-        duration: 2000,
         isClosable: true,
       });
     }
@@ -1094,6 +1005,7 @@ Thank you for choosing ${
 
   const renderMessage = (msg) => (
     <MotionFlex
+      key={msg.id}
       justify={msg.sender === "user" ? "flex-end" : "flex-start"}
       custom={msg.sender}
       variants={messageVariants}
@@ -1187,7 +1099,7 @@ Thank you for choosing ${
           <Alert
             status="info"
             variant="subtle"
-            bgGradient="linear(to-r, accent.400, brandPrimary.500)"
+            bgGradient={demoBgColor}
             color="white"
             py={3}
             mb={0}
@@ -1266,30 +1178,6 @@ Thank you for choosing ${
                 </Tooltip>
               )}
 
-              <Tooltip label="Export conversation" hasArrow>
-                <IconButton
-                  size="sm"
-                  icon={<FaDownload />}
-                  aria-label="Export conversation"
-                  onClick={exportChat}
-                  variant="ghost"
-                  color="white"
-                  _hover={{ bg: "whiteAlpha.200", color: "white" }}
-                />
-              </Tooltip>
-
-              <Tooltip label="Chat history" hasArrow>
-                <IconButton
-                  size="sm"
-                  icon={<FaHistory />}
-                  aria-label="Chat history"
-                  onClick={onOpen}
-                  variant="ghost"
-                  color="white"
-                  _hover={{ bg: "whiteAlpha.200", color: "white" }}
-                />
-              </Tooltip>
-
               <Tooltip label="Clear conversation" hasArrow>
                 <IconButton
                   size="sm"
@@ -1342,7 +1230,7 @@ Thank you for choosing ${
           }}
         >
           <VStack spacing={settings.messageSpacing} align="stretch">
-            {messages.map((msg, index) => renderMessage(msg))}
+            {messages.map((msg) => renderMessage(msg))}
             {isTyping && settings.showTypingIndicator && (
               <MessageTypingIndicator />
             )}
@@ -1411,50 +1299,6 @@ Thank you for choosing ${
           )}
         </Box>
       </Flex>
-
-      <Modal isOpen={isOpen} onClose={onClose} size="md">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Chat History</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody maxH="70vh" overflowY="auto">
-            {chatHistory.length > 0 ? (
-              <List spacing={3}>
-                {chatHistory.map((item, index) => (
-                  <ListItem
-                    key={index}
-                    p={3}
-                    borderWidth="1px"
-                    borderRadius="md"
-                    cursor="pointer"
-                    _hover={{ bg: "gray.50", _dark: { bg: "gray.700" } }}
-                    onClick={() => loadConversation(item)}
-                  >
-                    <Text fontWeight="bold" fontSize="sm" mb={1}>
-                      {formatDate(item.timestamp)}
-                    </Text>
-                    <Text fontSize="sm" noOfLines={1}>
-                      <b>You:</b> {item.userMessage}
-                    </Text>
-                    <Text fontSize="sm" color="gray.500" noOfLines={1}>
-                      <b>AI:</b> {item.aiResponse}
-                    </Text>
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Text textAlign="center" color="gray.500">
-                No chat history found
-              </Text>
-            )}
-          </ModalBody>
-          <ModalFooter>
-            <Button colorScheme="brandPrimary" mr={3} onClick={onClose}>
-              Close
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
       {renderSettings()}
     </Box>

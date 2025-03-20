@@ -39,27 +39,29 @@ function ClinicPage() {
   };
 
   return (
-    <Box px={{ base: 2, md: 0 }}>
+    <Box px={{ base: 0, md: 4 }} py={{ base: 2, md: 8 }}>
       <Heading
         as="h1"
-        mb={{ base: 4, md: 6 }}
+        mb={{ base: 3, md: 6 }}
         textAlign="center"
-        fontSize={{ base: "2xl", md: "3xl" }}
+        fontSize={{ base: "xl", md: "3xl" }}
+        px={2}
       >
         {clinicData.name}
       </Heading>
 
       <Text
         textAlign="center"
-        mb={{ base: 4, md: 6 }}
+        mb={{ base: 3, md: 6 }}
         fontSize={{ base: "md", md: "lg" }}
+        px={{ base: 2, md: 0 }}
       >
-        {clinicData.address} • {clinicData.phone}
+        {clinicData.address} {clinicData.phone}
       </Text>
 
       <Grid
         templateColumns={{ base: "1fr", lg: "1fr 1fr" }}
-        gap={{ base: 4, md: 6 }}
+        gap={{ base: 2, md: 6 }}
       >
         <GridItem>
           <Tabs variant="enclosed" onChange={(index) => setSelectedTab(index)}>
@@ -69,6 +71,7 @@ function ClinicPage() {
               borderBottom="none"
               overflowX={{ base: "auto", md: "visible" }}
               flexWrap={{ base: "nowrap", md: "wrap" }}
+              whiteSpace="nowrap"
               sx={{
                 scrollbarWidth: "none",
                 "&::-webkit-scrollbar": { display: "none" },
@@ -97,7 +100,7 @@ function ClinicPage() {
             <TabPanels>
               <TabPanel p={{ base: 2, md: 4 }}>
                 <Box
-                  height={{ base: "calc(100vh - 400px)", md: "500px" }}
+                  height={{ base: "calc(100vh - 280px)", md: "500px" }}
                   overflowY="auto"
                 >
                   {clinicData.doctors.map((doctor) => (

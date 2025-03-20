@@ -8,7 +8,6 @@ import {
   Button,
 } from "@chakra-ui/react";
 import { logAnalyticsEvent } from "../firebase/config";
-import { trackError } from "../utils/analytics";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -21,10 +20,6 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    trackError(error, {
-      component: "ErrorBoundary",
-      errorInfo,
-    });
     logAnalyticsEvent("error_occurred", {
       error: error.message,
       stack: error.stack,

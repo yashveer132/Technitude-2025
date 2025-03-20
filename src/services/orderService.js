@@ -1,7 +1,6 @@
 import { db } from "../firebase/config";
 import { collection, addDoc, updateDoc } from "firebase/firestore";
 import { validateOrderData } from "../utils/validation";
-import { saveOfflineAction } from "../services/offlineService";
 
 export const processOrder = async (orderData) => {
   const validation = validateOrderData(orderData);
@@ -28,11 +27,6 @@ export const processOrder = async (orderData) => {
     };
   } catch (error) {
     if (!navigator.onLine) {
-      await saveOfflineAction({
-        type: "order",
-        data: orderData,
-        action: "create",
-      });
       return {
         id: `offline_${Date.now()}`,
         estimatedPrepTime: calculateOrderPrepTime(orderData.items),

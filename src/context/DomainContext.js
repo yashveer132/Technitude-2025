@@ -4,7 +4,6 @@ import { restaurantData } from "../data/restaurantData";
 import { clinicData } from "../data/clinicData";
 import { hotelData } from "../data/hotelData";
 import { useServices } from "./ServiceContext";
-import { trackError } from "../utils/analytics";
 
 const DomainContext = createContext();
 
@@ -27,7 +26,7 @@ export const DomainProvider = ({ children }) => {
       setActiveDomain(domainType);
       setCurrentDomainConfig(config);
     } catch (error) {
-      trackError(error, "domain_switch");
+      console.error("Error switching domain:", error);
     }
   };
 

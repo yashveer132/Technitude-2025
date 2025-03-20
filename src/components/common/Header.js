@@ -6,7 +6,6 @@ import {
   Button,
   useColorMode,
   useColorModeValue,
-  Container,
   HStack,
   Icon,
   Menu,
@@ -82,135 +81,134 @@ function Header() {
       backdropFilter={backdropFilter}
       initial={{ y: -100 }}
       animate={{ y: 0 }}
+      width="100%"
     >
-      <Container maxW="container.xl">
-        <Flex justify="space-between" align="center">
-          <Flex align="center">
-            <Heading
-              as={RouterLink}
-              to="/"
-              size="lg"
-              fontWeight="bold"
-              letterSpacing="tight"
-            >
-              GenAI
-              <Box as="span" color="brandPrimary.500">
-                Assistant
-              </Box>
-            </Heading>
-          </Flex>
+      <Flex justify="space-between" align="center" width="100%">
+        <Flex align="center">
+          <Heading
+            as={RouterLink}
+            to="/"
+            size="lg"
+            fontWeight="bold"
+            letterSpacing="tight"
+          >
+            GenAI
+            <Box as="span" color="brandPrimary.500">
+              Assistant
+            </Box>
+          </Heading>
+        </Flex>
 
-          {isMobile ? (
-            <Menu>
-              <MenuButton
-                as={IconButton}
-                aria-label="Navigation menu"
-                icon={<FaBars />}
-                variant="ghost"
-                colorScheme="brandPrimary"
-              />
-              <MenuList>
-                <MenuItem as={RouterLink} to="/" icon={<Icon as={FaHome} />}>
-                  Home
-                </MenuItem>
-                <MenuItem
-                  as={RouterLink}
-                  to="/restaurant"
-                  icon={<Icon as={FaUtensils} />}
-                >
-                  Restaurant
-                </MenuItem>
-                <MenuItem
-                  as={RouterLink}
-                  to="/clinic"
-                  icon={<Icon as={FaHospital} />}
-                >
-                  Clinic
-                </MenuItem>
-                <MenuItem
-                  as={RouterLink}
-                  to="/hotel"
-                  icon={<Icon as={FaHotel} />}
-                >
-                  Hotel
-                </MenuItem>
-                <MenuItem
-                  onClick={toggleColorMode}
-                  icon={<Icon as={colorMode === "light" ? FaMoon : FaSun} />}
-                >
-                  {colorMode === "light" ? "Dark Mode" : "Light Mode"}
-                </MenuItem>
-              </MenuList>
-            </Menu>
-          ) : (
-            <HStack spacing={4}>
-              <Button
-                as={RouterLink}
-                to="/"
-                variant={isActive("/") ? "solid" : "ghost"}
-                colorScheme="brandPrimary"
-                leftIcon={<Icon as={FaHome} />}
-              >
+        {isMobile ? (
+          <Menu>
+            <MenuButton
+              as={IconButton}
+              aria-label="Navigation menu"
+              icon={<FaBars />}
+              variant="ghost"
+              colorScheme="brandPrimary"
+            />
+            <MenuList>
+              <MenuItem as={RouterLink} to="/" icon={<Icon as={FaHome} />}>
                 Home
-              </Button>
-              <Button
+              </MenuItem>
+              <MenuItem
                 as={RouterLink}
                 to="/restaurant"
-                variant={isActive("/restaurant") ? "solid" : "ghost"}
-                colorScheme="brandPrimary"
-                leftIcon={<Icon as={FaUtensils} boxSize={5} />}
-                fontSize="lg"
-                size="lg"
+                icon={<Icon as={FaUtensils} />}
               >
                 Restaurant
-              </Button>
-              <Button
+              </MenuItem>
+              <MenuItem
                 as={RouterLink}
                 to="/clinic"
-                variant={isActive("/clinic") ? "solid" : "ghost"}
+                icon={<Icon as={FaHospital} />}
+              >
+                Clinic
+              </MenuItem>
+              <MenuItem
+                as={RouterLink}
+                to="/hotel"
+                icon={<Icon as={FaHotel} />}
+              >
+                Hotel
+              </MenuItem>
+              <MenuItem
+                onClick={toggleColorMode}
+                icon={<Icon as={colorMode === "light" ? FaMoon : FaSun} />}
+              >
+                {colorMode === "light" ? "Dark Mode" : "Light Mode"}
+              </MenuItem>
+            </MenuList>
+          </Menu>
+        ) : (
+          <HStack spacing={4}>
+            <Button
+              as={RouterLink}
+              to="/"
+              variant={isActive("/") ? "solid" : "ghost"}
+              colorScheme="brandPrimary"
+              leftIcon={<Icon as={FaHome} />}
+            >
+              Home
+            </Button>
+            <Button
+              as={RouterLink}
+              to="/restaurant"
+              variant={isActive("/restaurant") ? "solid" : "ghost"}
+              colorScheme="brandPrimary"
+              leftIcon={<Icon as={FaUtensils} boxSize={5} />}
+              fontSize="lg"
+              size="lg"
+            >
+              Restaurant
+            </Button>
+            <Button
+              as={RouterLink}
+              to="/clinic"
+              variant={isActive("/clinic") ? "solid" : "ghost"}
+              colorScheme="brandPrimary"
+              leftIcon={<Icon as={FaHospital} boxSize={5} />}
+              fontSize="lg"
+              size="lg"
+            >
+              Clinic
+            </Button>
+            <Tooltip
+              label="Example of extending our system to additional domains"
+              hasArrow
+              placement="bottom"
+              bg="purple.600"
+              color="white"
+              px={4}
+              py={2}
+              borderRadius="md"
+            >
+              <Button
+                as={RouterLink}
+                to="/hotel"
+                variant={isActive("/hotel") ? "solid" : "ghost"}
                 colorScheme="brandPrimary"
-                leftIcon={<Icon as={FaHospital} boxSize={5} />}
+                leftIcon={<Icon as={FaHotel} boxSize={5} />}
                 fontSize="lg"
                 size="lg"
               >
-                Clinic
+                Hotel
               </Button>
-              <Tooltip
-                label="Example of extending our system to additional domains"
-                hasArrow
-                placement="bottom"
-                bg="purple.600"
-                color="white"
-                px={4}
-                py={2}
-                borderRadius="md"
-              >
-                <Button
-                  as={RouterLink}
-                  to="/hotel"
-                  variant={isActive("/hotel") ? "solid" : "ghost"}
-                  colorScheme="brandPrimary"
-                  leftIcon={<Icon as={FaHotel} boxSize={5} />}
-                  fontSize="lg"
-                  size="lg"
-                >
-                  Hotel
-                </Button>
-              </Tooltip>
-              <UserMenu />
-              <IconButton
-                aria-label={`Switch to ${
-                  colorMode === "light" ? "dark" : "light"
-                } mode`}
-                icon={<Icon as={colorMode === "light" ? FaMoon : FaSun} />}
-                onClick={toggleColorMode}
-                variant="ghost"
-                colorScheme="brandPrimary"
-              />
-            </HStack>
-          )}
-        </Flex>
-      </Container>
+            </Tooltip>
+            <UserMenu />
+            <IconButton
+              aria-label={`Switch to ${
+                colorMode === "light" ? "dark" : "light"
+              } mode`}
+              icon={<Icon as={colorMode === "light" ? FaMoon : FaSun} />}
+              onClick={toggleColorMode}
+              variant="ghost"
+              colorScheme="brandPrimary"
+            />
+          </HStack>
+        )}
+      </Flex>
     </MotionBox>
   );
 }
