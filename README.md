@@ -23,6 +23,10 @@ https://technitude-2025.netlify.app/
   - Natural language processing with Google's Gemini AI
   - Context-aware conversations
   - Intelligent response enhancement with domain data
+
+- **Multi-language Support** 
+  - Seamless interactions in multiple languages
+  - Automatic language detection and adaptation
   
 - **Advanced UI/UX**
   - Responsive design for all devices
