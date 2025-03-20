@@ -51,7 +51,7 @@ function Footer() {
             <Icon as={FaReact} mr={1} /> Powered by React & Gemini
           </Text>
           <Link
-            href="https://github.com"
+            href="https://github.com/yashveer132/Technitude-2025"
             isExternal
             display="flex"
             alignItems="center"

@@ -65,7 +65,6 @@ function ChatInterface({ context, domainData }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [apiStatus, setApiStatus] = useState("checking");
   const [sessionId] = useState(Math.random().toString(36).substring(7));
   const { user } = useAuth();
@@ -150,57 +149,6 @@ Please provide these details so I can confirm your order.`;
     "linear(to-r, blue.400, brandPrimary.400)",
     "linear(to-r, blue.600, brandPrimary.600)"
   );
-
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
-  const recognition = SpeechRecognition ? new SpeechRecognition() : null;
-
-  if (recognition) {
-    recognition.continuous = false;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
-      setIsListening(false);
-    };
-
-    recognition.onerror = (event) => {
-      console.error("Speech recognition error", event.error);
-      setIsListening(false);
-      toast({
-        title: "Voice recognition failed",
-        description: "Please try again or use text input",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-  }
-
-  const toggleListening = () => {
-    if (!recognition) {
-      toast({
-        title: "Voice recognition not supported",
-        description: "Your browser doesn't support speech recognition",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (isListening) {
-      recognition.stop();
-    } else {
-      setIsListening(true);
-      recognition.start();
-    }
-  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -359,22 +307,6 @@ Please provide these details so I can confirm your order.`;
       ]);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleVoiceInput = async () => {
-    try {
-      const transcript = await accessibility.startVoiceInput();
-      setInput(transcript);
-      handleSendMessage(transcript);
-    } catch (error) {
-      toast({
-        title: "Voice input failed",
-        description: "Please try again or use text input",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
     }
   };
 
@@ -1246,57 +1178,32 @@ Thank you for choosing ${
         >
           <InputGroup size="lg">
             <Input
-              pr="6rem"
+              pr="4rem"
               h="56px"
               placeholder="Type your message..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={isLoading || isListening}
+              disabled={isLoading}
               borderRadius="full"
               bg={inputBgColor}
               focusBorderColor="brandPrimary.400"
               fontSize="md"
               _placeholder={{ fontSize: "md" }}
             />
-            <InputRightElement width="6rem" h="100%">
-              <HStack spacing={2} mr={2}>
-                <Tooltip
-                  label={isListening ? "Stop listening" : "Voice input"}
-                  hasArrow
-                >
-                  <IconButton
-                    size="md"
-                    h="40px"
-                    w="40px"
-                    icon={<FaMicrophone size="1.2em" />}
-                    colorScheme={isListening ? "red" : "gray"}
-                    isDisabled={isLoading}
-                    onClick={toggleListening}
-                    aria-label="Voice input"
-                    variant="ghost"
-                  />
-                </Tooltip>
-
-                <IconButton
-                  size="md"
-                  h="40px"
-                  w="40px"
-                  icon={isLoading ? <Spinner /> : <FaPaperPlane size="1.2em" />}
-                  colorScheme="brandPrimary"
-                  onClick={handleSendMessage}
-                  isDisabled={!input.trim() || isLoading || isListening}
-                  aria-label="Send message"
-                />
-              </HStack>
+            <InputRightElement width="4rem" h="100%">
+              <IconButton
+                size="md"
+                h="40px"
+                w="40px"
+                icon={isLoading ? <Spinner /> : <FaPaperPlane size="1.2em" />}
+                colorScheme="brandPrimary"
+                onClick={handleSendMessage}
+                isDisabled={!input.trim() || isLoading}
+                aria-label="Send message"
+              />
             </InputRightElement>
           </InputGroup>
-
-          {isListening && (
-            <Text fontSize="sm" color="red.500" mt={2} textAlign="center">
-              Listening... speak now
-            </Text>
-          )}
         </Box>
       </Flex>
 

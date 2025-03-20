@@ -4,22 +4,21 @@ export const getDemoQueries = (context) => {
       "What vegetarian options do you have?",
       "I'd like to order a Vegetarian Buddha Bowl",
       "Is it available for delivery?",
-      "Yes, please add it to my order",
-      "What's the delivery time?",
+      "What are the differnt combo options available?",
+      "I need something spicy to eat",
     ],
     clinic: [
       "Who are your available doctors?",
       "I'd like to book an appointment with Dr. Johnson",
-      "Is tomorrow at 10 AM available?",
-      "Yes, I'd like to confirm the booking",
       "What insurance plans do you accept?",
+      "What is your appointment poilicy",
     ],
     hotel: [
       "What room types do you have available?",
       "I'm interested in the Executive Suite",
-      "Is it available next weekend?",
-      "What amenities are included?",
-      "I'd like to make a booking",
+      "What are the different hotel services that you offer",
+      "What are the differnet packages available",
+      "What is the check-in and check-out times?",
     ],
   };
 

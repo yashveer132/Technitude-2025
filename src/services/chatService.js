@@ -451,7 +451,12 @@ const handlePendingActionModification = (
   return null;
 };
 
-const handleResponseLogging = async (prompt, responseText, domainConfig, options) => {
+const handleResponseLogging = async (
+  prompt,
+  responseText,
+  domainConfig,
+  options
+) => {
   const { skipCache } = options;
 
   if (!skipCache) {
@@ -464,7 +469,7 @@ const handleResponseLogging = async (prompt, responseText, domainConfig, options
 
   logChatInteraction("message_sent", {
     domain: domainConfig.context,
-    success: true
+    success: true,
   });
 };
 
@@ -743,34 +748,53 @@ const calculateEstimatedTime = (orderDetails, kitchenCapacity) => {
 };
 
 const handleHotelBooking = async (prompt, domainConfig, sessionId) => {
+  const currentState = conversationState.get(sessionId) || {};
+  const query = prompt.toLowerCase();
+
+  if (
+    query.includes("room") ||
+    query.includes("book") ||
+    query.includes("stay") ||
+    query.includes("accommodation")
+  ) {
+    return {
+      message: `Here are our available room types:\n\n${domainConfig.data.rooms
+        .map(
+          (room) =>
+            `• ${room.type} - $${room.rate}/night\n  ${
+              room.description
+            }\n  Max Occupancy: ${room.maxOccupancy} guests\n  Status: ${
+              room.availability ? "Available" : "Currently Booked"
+            }\n`
+        )
+        .join(
+          "\n"
+        )}\n\nPlease let me know which room type interests you and your preferred check-in date. I'll help you check availability.`,
+      updateContext: {
+        lastTopic: "hotel_rooms",
+        pendingConfirmation: false,
+      },
+    };
+  }
+
   const bookingDetails = extractHotelBookingDetails(prompt, domainConfig);
 
   if (bookingDetails.checkIn && bookingDetails.roomType) {
-    conversationState.set(sessionId, {
-      pendingAction: {
-        action: "HOTEL_BOOKING",
-        data: bookingDetails,
-      },
-      lastTopic: "hotel",
-      pendingConfirmation: true,
-    });
+  }
 
+  if (currentState.lastTopic === "hotel_rooms") {
     return {
-      message: `I've prepared a reservation for a ${
-        bookingDetails.roomType
-      } room from ${bookingDetails.checkIn} to ${
-        bookingDetails.checkOut || "the day after"
-      }. The rate is $${
-        bookingDetails.rate || "standard rate"
-      } per night. Would you like to confirm this booking?`,
-      requiresConfirmation: true,
-      pendingAction: "HOTEL_BOOKING",
+      message: "Which room type would you like to book and for what dates?",
+      updateContext: {
+        lastTopic: "room_selection",
+        pendingConfirmation: false,
+      },
     };
   }
 
   return {
     message:
-      "I'll help you book a room. Could you please provide your preferred check-in date and room type?",
+      "I'll help you find the perfect room. Would you like to see our available room types first?",
     updateContext: {
       lastTopic: "hotel",
       pendingConfirmation: false,

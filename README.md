@@ -1,94 +1,169 @@
-# GenAI Assistant - Versatile Domain-Adaptable System
+# 🤖 GenAI Business Assistant - Technitude 2025
 
-A GenAI-powered system with an easy-to-use interface adaptable for different domains including restaurant menu-based online ordering and clinic doctor schedule-based appointment booking.
+A versatile domain-adaptable GenAI assistant that provides natural conversational interactions across multiple business domains. Built for the Technitude 2025 Hackathon, this system showcases seamless adaptability from restaurant ordering to clinic appointments and beyond.
 
-## Project Overview
+[![Made with React](https://img.shields.io/badge/Made%20with-React-61DAFB.svg)](https://reactjs.org/)
+[![Firebase](https://img.shields.io/badge/Firebase-FFCA28?logo=firebase&logoColor=black)](https://firebase.google.com/)
+[![Google Generative AI](https://img.shields.io/badge/Google%20Gemini-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
+[![Chakra UI](https://img.shields.io/badge/Chakra%20UI-319795?logo=chakra-ui&logoColor=white)](https://chakra-ui.com/)
 
-This project is a solution for creating a versatile, domain-adaptable GenAI assistant that can be used across different business domains. Currently, it has been configured for two primary use cases:
+## 🌟 Key Features
 
-1. **Restaurant Online Ordering** - Allows users to browse menu items, get recommendations based on dietary preferences, and place orders.
-2. **Clinic Appointment Booking** - Enables users to check doctor availability, book appointments, and get information about medical services.
+- **Multi-Domain Support**
+  - 🍽️ Restaurant Ordering System
+  - 🏥 Clinic Appointment Booking
+  - 🏨 Hotel Reservations (Extended Domain Example)
 
-## Key Features
+- **Smart Interactions**
+  - Natural language processing with Google's Gemini AI
+  - Context-aware conversations
+  - Intelligent response enhancement with domain data
+  
+- **Advanced UI/UX**
+  - Responsive design for all devices
+  - Dark/Light theme support
+  - Real-time typing indicators
+  - Message markdown support
+  - Intuitive chat interface
+  
+- **Technical Excellence**
+  - Domain adapter pattern for easy extensibility
+  - Smart caching for performance optimization
+  - Offline support capabilities
+  - Error boundary protection
+  - Extensive accessibility features
 
-- **Adaptable Architecture** - The system is designed to easily extend to new domains beyond restaurants and clinics
-- **Natural Language Interface** - Users can interact with the system using natural language queries
-- **Domain-Specific Knowledge** - The AI responses are enhanced with domain-specific data
-- **Responsive Design** - Works well on both desktop and mobile devices
-- **Dark/Light Mode** - Supports both light and dark themes for user preference
+## 🚀 Getting Started
 
-## Technical Details
+### Prerequisites
+- Node.js (v14 or higher)
+- npm/yarn
+- Google Cloud Account (for Gemini AI)
+- Firebase Account
 
-### Architecture
+### Setting Up Firebase
+1. Create a new Firebase project at [Firebase Console](https://console.firebase.google.com/)
+2. Enable Authentication and Firestore
+3. Get your Firebase configuration:
+   ```javascript
+   const firebaseConfig = {
+     apiKey: "your-api-key",
+     authDomain: "your-auth-domain",
+     projectId: "your-project-id",
+     storageBucket: "your-storage-bucket",
+     messagingSenderId: "your-messaging-sender-id",
+     appId: "your-app-id"
+   };
+   ```
+4. Create a `.env` file in the project root and add:
+   ```
+   REACT_APP_FIREBASE_CONFIG=your-stringified-config
+   ```
 
-The project follows a modular architecture that separates domain-specific knowledge from the core AI assistant functionality:
+### Setting Up Google Generative AI
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Create an API key
+3. Add to your `.env`:
+   ```
+   REACT_APP_GEMINI_API_KEY=your-api-key
+   ```
+
+### Installation
+```bash
+# Clone the repository
+git clone https://github.com/yashveer132/Technitude-2025.git
+
+# Install dependencies
+cd technitude-2025
+npm install
+
+# Start development server
+npm start
+```
+
+## 💡 Usage Examples
+
+### Restaurant Assistant
+```
+User: "What vegetarian options do you have?"
+AI: "We have several vegetarian dishes:
+    • Vegetarian Buddha Bowl ($12.99)
+    • Mushroom Risotto ($13.99)
+    • Quinoa Power Bowl ($16.99)
+    All are prepared fresh and can be customized to your preferences."
+```
+
+### Clinic Assistant
+```
+User: "I need an appointment with a cardiologist"
+AI: "I can help you with that. Dr. Sarah Johnson, our cardiologist, has the following slots available:
+    • Tuesday: 2:00 PM, 3:30 PM
+    • Thursday: 10:00 AM, 11:30 AM
+    The consultation fee is $150. Would you like to book an appointment?"
+```
+
+### Hotel Assistant
+```
+User: "What rooms are available next weekend?"
+AI: "For next weekend, we have:
+    • Standard King Room ($199/night)
+    • Deluxe King Room ($249/night)
+    Both include free WiFi, daily housekeeping, and city views."
+```
+
+## 🏗️ Architecture
 
 ```
 src/
-├── components/       # Reusable UI components
-│   ├── chat/         # Chat interface components
-│   └── common/       # Common UI components like Header and Footer
-├── data/             # Domain-specific data
-│   ├── restaurantData.js  # Restaurant menu and ordering information
-│   └── clinicData.js      # Clinic doctors and services information
-├── pages/            # Main page components
-│   ├── HomePage.js        # Landing page
-│   ├── RestaurantPage.js  # Restaurant interface
-│   └── ClinicPage.js      # Clinic interface
-├── services/         # External API services
-│   └── aiService.js      # Google Generative AI integration
-├── utils/            # Utility functions
-│   └── domainAdapter.js   # Domain adaptation utilities
-├── firebase/         # Firebase configuration
-└── App.js           # Main application component
+├── components/          # Reusable UI components
+│   ├── chat/           # Chat interface components
+│   ├── common/         # Shared components
+│   └── auth/           # Authentication components
+├── context/            # React contexts
+├── data/              # Domain-specific data
+├── services/          # External service integrations
+├── utils/             # Utility functions
+└── pages/             # Main page components
 ```
 
-### Technologies Used
+## 🎯 Meeting Hackathon Criteria
 
-- **React** - Frontend library
-- **Chakra UI** - Component library for consistent design
-- **OpenAI API** - For natural language processing
-- **Firebase** - Backend as a service for data storage
-- **React Router** - For navigation between different sections
+### Portability ✨
+- Domain adapter pattern enables quick integration of new domains
+- Consistent interface across different business contexts
+- Modular architecture for easy adaptation
 
-## Sample Queries
+### Code Quality 📝
+- Clean code architecture with separation of concerns
+- Comprehensive error handling
+- Consistent coding standards
 
-### Restaurant Assistant:
-- "What dishes do you offer that are vegetarian?"
-- "Do you have any gluten-free options?"
-- "Can you recommend a meal combo based on my preferences for seafood?"
-- "How long will it take for my order to be ready?"
+### Versatility 🔄
+- Successfully implemented 3 distinct domains
+- Extendable prompt enhancement system
+- Flexible data structure adaptation
 
-### Clinic Assistant:
-- "Which doctors are available today?"
-- "Can I book an appointment with Dr. Johnson for next Tuesday?"
-- "What is the consultation fee for a general check-up?"
-- "Do you accept BlueCross insurance?"
+### Usability 👥
+- Intuitive chat interface
+- Real-time response indicators
+- Mobile-responsive design
+- Accessibility features
 
-## Extensibility
+### Efficiency ⚡
+- Smart caching system
+- Optimized API calls
+- Local data enhancement
+- Progressive loading
 
-The system is designed to be easily extended to new domains by:
+### Innovation 🎨
+- Context-aware conversations
+- Dynamic response formatting
+- Multi-modal input support
+- Seamless domain switching
 
-1. Creating a new domain data file with the appropriate structure
-2. Configuring domain-specific prompt enhancements in the domainAdapter
-3. Creating a new page component for the domain interface
+## 👥 Team
 
-## Setup and Installation
+- Yash Veer Singh
 
-1. Clone the repository
-2. Run `npm install` to install dependencies
-3. Create a `.env` file with the OpenAI API key:
-   ```
-   REACT_APP_OPENAI_API_KEY=your_openai_api_key
-   ```
-4. Set up a Firebase project and update the configuration in `firebase/config.js`
-5. Run `npm start` to start the development server
-
-## Judging Criteria Addressed
-
-- **Portability**: The system is designed with a domain-adapter pattern that makes it easy to adapt to new domains.
-- **Code Quality**: The code is structured into reusable components with clear separation of concerns.
-- **Versatility**: The system can be extended to multiple domains beyond the given scenarios as demonstrated by the hotel booking example in the domainAdapter.
-- **Usability**: The interface is intuitive and user-friendly with responsive design.
-- **Efficiency**: The system optimizes API calls and enhances responses with local data when possible.
-- **Presentation**: The UI is clean and professional with consistent design elements.
+---
+Made with ❤️ for Technitude 2025

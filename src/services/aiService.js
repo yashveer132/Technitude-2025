@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import AI_CONFIG from "../config/aiConfig";
+import { hotelData } from "../data/hotelData";
 
 let isApiWorking = false;
 let model = null;
@@ -87,8 +88,81 @@ Help guests feel welcomed and valued, as if they're already experiencing the hot
   }
 };
 
+function formatRoomDetails(room) {
+  return `• ${room.type} - $${room.rate}/night
+    - ${room.description}
+    - Max Occupancy: ${room.maxOccupancy} guests
+    - Amenities: ${room.amenities.join(", ")}
+    - Features: ${room.features.join(", ")}
+    - Status: ${room.availability ? "Available" : "Currently Booked"}`;
+}
+
 function getOfflineResponse(prompt, context) {
   const query = prompt.toLowerCase();
+
+  if (context === "hotel") {
+    if (
+      query.includes("list") ||
+      query.includes("available") ||
+      query.includes("show") ||
+      (query.includes("what") && query.includes("room")) ||
+      query.includes("tell me about") ||
+      query.includes("room type")
+    ) {
+      return `Here are all our room types at ${
+        hotelData.name
+      }:\n\n${hotelData.rooms
+        .map(formatRoomDetails)
+        .join(
+          "\n\n"
+        )}\n\nWould you like to proceed with a booking? I can help you check availability for your preferred dates.`;
+    } else if (
+      query.includes("room") ||
+      query.includes("suite") ||
+      query.includes("accommodation") ||
+      query.includes("stay") ||
+      query.includes("book")
+    ) {
+      return `Let me show you our available room types first:\n\n${hotelData.rooms
+        .map(formatRoomDetails)
+        .join(
+          "\n\n"
+        )}\n\nTo proceed with a booking, please let me know your preferred check-in date and room type. I'll help you check availability.`;
+    } else if (query.includes("amenities") || query.includes("facilities")) {
+      return "GenAI Luxury Hotel offers a comprehensive range of amenities to enhance your stay. Our facilities include a rooftop infinity pool with panoramic city views, a fully-equipped fitness center open 24/7, a luxury spa offering various treatments, three distinctive dining venues including our award-winning rooftop restaurant, concierge services, complimentary high-speed Wi-Fi throughout the property, valet parking, business center, and executive lounge access for suite guests. Would you like more details about any specific amenity?";
+    } else if (
+      query.includes("location") ||
+      query.includes("nearby") ||
+      query.includes("around")
+    ) {
+      return "GenAI Luxury Hotel enjoys a prime downtown location with numerous attractions within walking distance. We're just two blocks from Central Plaza, a 5-minute walk to the Museum of Fine Arts, 10 minutes from the Symphony Hall, and surrounded by boutique shopping and fine dining options. The International Airport is a convenient 20-minute drive, and public transportation is accessible from the Metro Station just across the street. Our concierge team can arrange tours and transportation to any destination you're interested in exploring.";
+    } else if (
+      query.includes("check-in") ||
+      query.includes("check-out") ||
+      query.includes("arrival")
+    ) {
+      return "Our standard check-in time is 3:00 PM, and check-out is at 12:00 PM noon. Early check-in and late check-out can be arranged based on availability for a nominal fee. If you arrive before your room is ready, our bell staff will be happy to store your luggage securely while you enjoy our facilities or explore the area. For Platinum Rewards members, we offer guaranteed early check-in from 12:00 PM and late check-out until 2:00 PM at no additional charge.";
+    } else if (
+      query.includes("dining") ||
+      query.includes("restaurant") ||
+      query.includes("breakfast")
+    ) {
+      return "GenAI Luxury Hotel features three exceptional dining venues: The Skyline Restaurant on our rooftop level offers innovative fine dining with panoramic city views, open for dinner from 5:30 PM to 10:30 PM. The Garden Café provides casual all-day dining in a lush atrium setting from 6:30 AM to 10:00 PM. Our elegant Lobby Lounge serves light fare, afternoon tea, and craft cocktails from 11:00 AM until midnight. Complimentary breakfast is included with all room rates and is served at The Garden Café from 6:30 AM to 10:30 AM (until 11:00 AM on weekends).";
+    } else if (
+      query.includes("spa") ||
+      query.includes("massage") ||
+      query.includes("wellness")
+    ) {
+      return "Our Serenity Spa offers a comprehensive range of treatments designed to relax and rejuvenate. Popular options include our Signature Massage (60/90 minutes, $150/$210), Hot Stone Therapy (75 minutes, $180), Revitalizing Facial (60 minutes, $165), and Detoxifying Body Wrap (90 minutes, $195). The spa facilities include aromatherapy steam rooms, a meditation garden, and a relaxation lounge with herbal teas. We recommend booking treatments at least 24 hours in advance, especially during weekends. Hotel guests receive a 15% discount on all spa services.";
+    } else if (
+      query.includes("parking") ||
+      query.includes("car") ||
+      query.includes("transport")
+    ) {
+      return "We offer valet parking service for hotel guests at $35 per night with unlimited in/out privileges. Self-parking is available in the adjacent parking garage at $25 per night. For transportation needs, our concierge can arrange airport transfers ($60 one-way), private car service ($75 per hour), or taxi/rideshare services. We also offer complimentary luxury sedan service within a 2-mile radius of the hotel, subject to availability. Electric vehicle charging stations are available in our parking area at no additional cost.";
+    }
+    return "Welcome to GenAI Luxury Hotel! Our property combines elegant accommodations with exceptional service to create memorable stays in the heart of the city. From our sophisticated rooms and suites to our world-class dining and wellness facilities, we strive to exceed every expectation. How may I assist you with your upcoming stay or inquiry today?";
+  }
 
   if (context === "restaurant") {
     if (
@@ -164,47 +238,6 @@ function getOfflineResponse(prompt, context) {
       return "We provide COVID-19 testing (both PCR and rapid antigen) and vaccinations at our clinic. Testing is available by appointment Monday through Saturday, with results typically available within 24-48 hours for PCR and 15 minutes for rapid tests. We offer all authorized COVID-19 vaccines and boosters. Please bring your ID and insurance card if you have one, though testing and vaccines are available regardless of insurance status.";
     }
     return "Welcome to GenAI Wellness Clinic! Our team of healthcare professionals is dedicated to providing comprehensive, patient-centered care for you and your family. Whether you need to schedule an appointment, have questions about our services, or need information about our doctors, I'm here to assist you. How may I help you with your healthcare needs today?";
-  } else if (context === "hotel") {
-    if (
-      query.includes("book") ||
-      query.includes("reservation") ||
-      query.includes("room")
-    ) {
-      return "I'd be delighted to assist with your room reservation at GenAI Luxury Hotel. We offer several elegant room types including Standard Rooms ($199/night), Deluxe Rooms with city views ($249/night), Executive Suites with separate living areas ($349/night), and our premium Penthouse Suite ($599/night). All rates include complimentary breakfast, Wi-Fi, and access to our fitness center and rooftop pool. Could you please provide your preferred dates and room type to check availability?";
-    } else if (query.includes("amenities") || query.includes("facilities")) {
-      return "GenAI Luxury Hotel offers a comprehensive range of amenities to enhance your stay. Our facilities include a rooftop infinity pool with panoramic city views, a fully-equipped fitness center open 24/7, a luxury spa offering various treatments, three distinctive dining venues including our award-winning rooftop restaurant, concierge services, complimentary high-speed Wi-Fi throughout the property, valet parking, business center, and executive lounge access for suite guests. Would you like more details about any specific amenity?";
-    } else if (
-      query.includes("location") ||
-      query.includes("nearby") ||
-      query.includes("around")
-    ) {
-      return "GenAI Luxury Hotel enjoys a prime downtown location with numerous attractions within walking distance. We're just two blocks from Central Plaza, a 5-minute walk to the Museum of Fine Arts, 10 minutes from the Symphony Hall, and surrounded by boutique shopping and fine dining options. The International Airport is a convenient 20-minute drive, and public transportation is accessible from the Metro Station just across the street. Our concierge team can arrange tours and transportation to any destination you're interested in exploring.";
-    } else if (
-      query.includes("check-in") ||
-      query.includes("check-out") ||
-      query.includes("arrival")
-    ) {
-      return "Our standard check-in time is 3:00 PM, and check-out is at 12:00 PM noon. Early check-in and late check-out can be arranged based on availability for a nominal fee. If you arrive before your room is ready, our bell staff will be happy to store your luggage securely while you enjoy our facilities or explore the area. For Platinum Rewards members, we offer guaranteed early check-in from 12:00 PM and late check-out until 2:00 PM at no additional charge.";
-    } else if (
-      query.includes("dining") ||
-      query.includes("restaurant") ||
-      query.includes("breakfast")
-    ) {
-      return "GenAI Luxury Hotel features three exceptional dining venues: The Skyline Restaurant on our rooftop level offers innovative fine dining with panoramic city views, open for dinner from 5:30 PM to 10:30 PM. The Garden Café provides casual all-day dining in a lush atrium setting from 6:30 AM to 10:00 PM. Our elegant Lobby Lounge serves light fare, afternoon tea, and craft cocktails from 11:00 AM until midnight. Complimentary breakfast is included with all room rates and is served at The Garden Café from 6:30 AM to 10:30 AM (until 11:00 AM on weekends).";
-    } else if (
-      query.includes("spa") ||
-      query.includes("massage") ||
-      query.includes("wellness")
-    ) {
-      return "Our Serenity Spa offers a comprehensive range of treatments designed to relax and rejuvenate. Popular options include our Signature Massage (60/90 minutes, $150/$210), Hot Stone Therapy (75 minutes, $180), Revitalizing Facial (60 minutes, $165), and Detoxifying Body Wrap (90 minutes, $195). The spa facilities include aromatherapy steam rooms, a meditation garden, and a relaxation lounge with herbal teas. We recommend booking treatments at least 24 hours in advance, especially during weekends. Hotel guests receive a 15% discount on all spa services.";
-    } else if (
-      query.includes("parking") ||
-      query.includes("car") ||
-      query.includes("transport")
-    ) {
-      return "We offer valet parking service for hotel guests at $35 per night with unlimited in/out privileges. Self-parking is available in the adjacent parking garage at $25 per night. For transportation needs, our concierge can arrange airport transfers ($60 one-way), private car service ($75 per hour), or taxi/rideshare services. We also offer complimentary luxury sedan service within a 2-mile radius of the hotel, subject to availability. Electric vehicle charging stations are available in our parking area at no additional cost.";
-    }
-    return "Welcome to GenAI Luxury Hotel! Our property combines elegant accommodations with exceptional service to create memorable stays in the heart of the city. From our sophisticated rooms and suites to our world-class dining and wellness facilities, we strive to exceed every expectation. How may I assist you with your upcoming stay or inquiry today?";
   }
 
   return "I'm here to help! Please let me know what information you're looking for, and I'll be happy to provide professional assistance tailored to your needs.";
